@@ -20,10 +20,6 @@ var IPython = (function (IPython) {
         }
     };
 
-    NotebookList.prototype.baseProjectUrl = function () {
-        return $('body').data('baseProjectUrl')
-    };
-
     NotebookList.prototype.style = function () {
         $('#notebook_toolbar').addClass('list_toolbar');
         $('#drag_info').addClass('toolbar_info');
@@ -104,7 +100,7 @@ var IPython = (function (IPython) {
                              },this)
         };
 
-        var url = this.baseProjectUrl() + 'notebooks';
+        var url = $('body').data('baseProjectUrl') + 'notebooks';
         $.ajax(url, settings);
     };
 
@@ -166,7 +162,7 @@ var IPython = (function (IPython) {
         var new_item_name = $('<span/>').addClass('item_name');
         new_item_name.append(
             $('<a/>').
-            attr('href', this.baseProjectUrl()+notebook_id).
+            attr('href', $('body').data('baseProjectUrl')+notebook_id).
             attr('target','_blank').
             text(nbname)
         );
@@ -216,7 +212,7 @@ var IPython = (function (IPython) {
                         that.load_list();
                     }
                 };
-                var url = that.baseProjectUrl() + 'kernels/'+kernel;
+                var url = $('body').data('baseProjectUrl') + 'kernels/'+kernel;
                 $.ajax(url, settings);
             });
         new_buttons.append(shutdown_button);
@@ -230,7 +226,6 @@ var IPython = (function (IPython) {
 
     NotebookList.prototype.add_delete_button = function (item) {
         var new_buttons = $('<span/>').addClass('item_buttons');
-        var notebooklist = this;
         var delete_button = $('<button>Delete</button>').button().
             click(function (e) {
                 // $(this) is the button that was clicked.
@@ -258,7 +253,7 @@ var IPython = (function (IPython) {
                                     parent_item.remove();
                                 }
                             };
-                            var url = notebooklist.baseProjectUrl() + 'notebooks/' + notebook_id;
+                            var url = $('body').data('baseProjectUrl') + 'notebooks/' + notebook_id;
                             $.ajax(url, settings);
                             $(this).dialog('close');
                         },
@@ -307,7 +302,7 @@ var IPython = (function (IPython) {
                 };
 
                 var qs = $.param({name:nbname, format:nbformat});
-                var url = that.baseProjectUrl() + 'notebooks?' + qs;
+                var url = $('body').data('baseProjectUrl') + 'notebooks?' + qs;
                 $.ajax(url, settings);
             });
         var cancel_button = $('<button>Cancel</button>').button().

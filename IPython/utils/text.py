@@ -1,11 +1,6 @@
 # encoding: utf-8
 """
 Utilities for working with strings and text.
-
-Inheritance diagram:
-
-.. inheritance-diagram:: IPython.utils.text
-   :parts: 3
 """
 
 #-----------------------------------------------------------------------------
@@ -23,6 +18,7 @@ import __main__
 
 import os
 import re
+import shutil
 import sys
 import textwrap
 from string import Formatter
@@ -30,11 +26,24 @@ from string import Formatter
 from IPython.external.path import path
 from IPython.testing.skipdoctest import skip_doctest_py3, skip_doctest
 from IPython.utils import py3compat
+from IPython.utils.io import nlprint
 from IPython.utils.data import flatten
 
 #-----------------------------------------------------------------------------
 # Code
 #-----------------------------------------------------------------------------
+
+def unquote_ends(istr):
+    """Remove a single pair of quotes from the endpoints of a string."""
+
+    if not istr:
+        return istr
+    if (istr[0]=="'" and istr[-1]=="'") or \
+       (istr[0]=='"' and istr[-1]=='"'):
+        return istr[1:-1]
+    else:
+        return istr
+
 
 class LSString(str):
     """String derivative with a special access attributes.
@@ -252,9 +261,103 @@ class SList(list):
 #         arg.hideonce = False
 #         return
 #
-#     nlprint(arg)   # This was a nested list printer, now removed.
+#     nlprint(arg)
 #
 # print_slist = result_display.when_type(SList)(print_slist)
+
+
+def esc_quotes(strng):
+    """Return the input string with single and double quotes escaped out"""
+
+    return strng.replace('"','\\"').replace("'","\\'")
+
+
+def qw(words,flat=0,sep=None,maxsplit=-1):
+    """Similar to Perl's qw() operator, but with some more options.
+
+    qw(words,flat=0,sep=' ',maxsplit=-1) -> words.split(sep,maxsplit)
+
+    words can also be a list itself, and with flat=1, the output will be
+    recursively flattened.
+
+    Examples:
+
+    >>> qw('1 2')
+    ['1', '2']
+
+    >>> qw(['a b','1 2',['m n','p q']])
+    [['a', 'b'], ['1', '2'], [['m', 'n'], ['p', 'q']]]
+
+    >>> qw(['a b','1 2',['m n','p q']],flat=1)
+    ['a', 'b', '1', '2', 'm', 'n', 'p', 'q']
+    """
+
+    if isinstance(words, basestring):
+        return [word.strip() for word in words.split(sep,maxsplit)
+                if word and not word.isspace() ]
+    if flat:
+        return flatten(map(qw,words,[1]*len(words)))
+    return map(qw,words)
+
+
+def qwflat(words,sep=None,maxsplit=-1):
+    """Calls qw(words) in flat mode. It's just a convenient shorthand."""
+    return qw(words,1,sep,maxsplit)
+
+
+def qw_lol(indata):
+    """qw_lol('a b') -> [['a','b']],
+    otherwise it's just a call to qw().
+
+    We need this to make sure the modules_some keys *always* end up as a
+    list of lists."""
+
+    if isinstance(indata, basestring):
+        return [qw(indata)]
+    else:
+        return qw(indata)
+
+
+def grep(pat,list,case=1):
+    """Simple minded grep-like function.
+    grep(pat,list) returns occurrences of pat in list, None on failure.
+
+    It only does simple string matching, with no support for regexps. Use the
+    option case=0 for case-insensitive matching."""
+
+    # This is pretty crude. At least it should implement copying only references
+    # to the original data in case it's big. Now it copies the data for output.
+    out=[]
+    if case:
+        for term in list:
+            if term.find(pat)>-1: out.append(term)
+    else:
+        lpat=pat.lower()
+        for term in list:
+            if term.lower().find(lpat)>-1: out.append(term)
+
+    if len(out): return out
+    else: return None
+
+
+def dgrep(pat,*opts):
+    """Return grep() on dir()+dir(__builtins__).
+
+    A very common use of grep() when working interactively."""
+
+    return grep(pat,dir(__main__)+dir(__main__.__builtins__),*opts)
+
+
+def idgrep(pat):
+    """Case-insensitive dgrep()"""
+
+    return dgrep(pat,0)
+
+
+def igrep(pat,list):
+    """Synonym for case-insensitive grep."""
+
+    return grep(pat,list,case=0)
 
 
 def indent(instr,nspaces=4, ntabs=0, flatten=False):
@@ -294,6 +397,31 @@ def indent(instr,nspaces=4, ntabs=0, flatten=False):
         return outstr[:-len(ind)]
     else:
         return outstr
+
+def native_line_ends(filename,backup=1):
+    """Convert (in-place) a file to line-ends native to the current OS.
+
+    If the optional backup argument is given as false, no backup of the
+    original file is left.  """
+
+    backup_suffixes = {'posix':'~','dos':'.bak','nt':'.bak','mac':'.bak'}
+
+    bak_filename = filename + backup_suffixes[os.name]
+
+    original = open(filename).read()
+    shutil.copy2(filename,bak_filename)
+    try:
+        new = open(filename,'wb')
+        new.write(os.linesep.join(original.splitlines()))
+        new.write(os.linesep) # ALWAYS put an eol at the end of the file
+        new.close()
+    except:
+        os.rename(bak_filename,filename)
+    if not backup:
+        try:
+            os.remove(bak_filename)
+        except:
+            pass
 
 
 def list_strings(arg):
@@ -637,8 +765,8 @@ def _get_or_default(mylist, i, default=None):
 def compute_item_matrix(items, empty=None, *args, **kwargs) :
     """Returns a nested list, and info to columnize items
 
-    Parameters
-    ----------
+    Parameters :
+    ------------
 
     items :
         list of strings to columize
@@ -649,8 +777,8 @@ def compute_item_matrix(items, empty=None, *args, **kwargs) :
     displaywidth : int (default=80)
         The width of the area onto wich the columns should enter
 
-    Returns
-    -------
+    Returns :
+    ---------
 
     Returns a tuple of (strings_matrix, dict_info)
 
@@ -669,8 +797,8 @@ def compute_item_matrix(items, empty=None, *args, **kwargs) :
         columns_width   : list of with of each columns
         optimal_separator_width : best separator width between columns
 
-    Examples
-    --------
+    Exemple :
+    ---------
 
     In [1]: l = ['aaa','b','cc','d','eeeee','f','g','h','i','j','k','l']
        ...: compute_item_matrix(l,displaywidth=12)

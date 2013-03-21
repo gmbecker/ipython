@@ -12,10 +12,10 @@
 var IPython = (function (IPython) {
 
     var MainToolBar = function (selector) {
+        this.selector = selector;
         IPython.ToolBar.apply(this, arguments);
         this.construct();
-        this.add_celltype_list();
-        this.add_celltoolbar_list();
+        this.add_drop_down_list();
         this.bind_events();
     };
 
@@ -51,10 +51,10 @@ var IPython = (function (IPython) {
                 },
                 {
                     id : 'paste_b',
-                    label : 'Paste Cell Below',
+                    label : 'Paste Cell',
                     icon : 'ui-icon-clipboard',
                     callback : function () {
-                        IPython.notebook.paste_cell_below();
+                        IPython.notebook.paste_cell();
                         }
                 }
             ],'cut_copy_paste');
@@ -115,55 +115,28 @@ var IPython = (function (IPython) {
                         }
                 }
             ],'run_int');
+
+
     };
 
-    MainToolBar.prototype.add_celltype_list = function () {
-        this.element
+    MainToolBar.prototype.add_drop_down_list = function () {
+        var select = $(this.selector)
             .append($('<select/>')
                 .attr('id','cell_type')
-                .addClass('ui-widget-content')
-                .append($('<option/>').attr('value','code').text('Code'))
-                .append($('<option/>').attr('value','markdown').text('Markdown'))
-                .append($('<option/>').attr('value','raw').text('Raw Text'))
-                .append($('<option/>').attr('value','heading1').text('Heading 1'))
-                .append($('<option/>').attr('value','heading2').text('Heading 2'))
-                .append($('<option/>').attr('value','heading3').text('Heading 3'))
-                .append($('<option/>').attr('value','heading4').text('Heading 4'))
-                .append($('<option/>').attr('value','heading5').text('Heading 5'))
-                .append($('<option/>').attr('value','heading6').text('Heading 6'))
-            );
+                .addClass('ui-widget ui-widget-content')
+                    .append($('<option/>').attr('value','code').text('Code'))
+                    .append($('<option/>').attr('value','markdown').text('Markdown'))
+                    .append($('<option/>').attr('value','raw').text('Raw Text'))
+                    .append($('<option/>').attr('value','heading1').text('Heading 1'))
+                    .append($('<option/>').attr('value','heading2').text('Heading 2'))
+                    .append($('<option/>').attr('value','heading3').text('Heading 3'))
+                    .append($('<option/>').attr('value','heading4').text('Heading 4'))
+                    .append($('<option/>').attr('value','heading5').text('Heading 5'))
+                    .append($('<option/>').attr('value','heading6').text('Heading 6'))
+                    .append($('<option/>').attr('value','heading7').text('Heading 7'))
+                    .append($('<option/>').attr('value','heading8').text('Heading 8'))
+                );
     };
-
-
-    MainToolBar.prototype.add_celltoolbar_list = function () {
-        var label = $('<label/>').text('Cell Toolbar:');
-        var select = $('<select/>')
-            .addClass('ui-widget-content')
-            .attr('id', 'ctb_select')
-            .append($('<option/>').attr('value', '').text('None'));
-        this.element.append(label).append(select);
-        select.change(function() {
-                var val = $(this).val()
-                if (val =='') {
-                    IPython.CellToolbar.global_hide();
-                } else {
-                    IPython.CellToolbar.global_show();
-                    IPython.CellToolbar.activate_preset(val);
-                }
-            });
-        // Setup the currently registered presets.
-        var presets = IPython.CellToolbar.list_presets();
-        for (var i=0; i<presets.length; i++) {
-            var name = presets[i];
-            select.append($('<option/>').attr('value', name).text(name));
-        }
-        // Setup future preset registrations.
-        $([IPython.events]).on('preset_added.CellToolbar', function (event, data) {
-            var name = data.name;
-            select.append($('<option/>').attr('value', name).text(name));
-        });
-    };
-
 
     MainToolBar.prototype.bind_events = function () {
         var that = this;

@@ -43,9 +43,8 @@ from IPython.external.decorator import decorator
 
 # IPython imports
 from IPython.config.application import Application
-from IPython.utils.localinterfaces import LOCALHOST, PUBLIC_IPS
-from IPython.kernel.zmq.log import EnginePUBHandler
-from IPython.kernel.zmq.serialize import (
+from IPython.zmq.log import EnginePUBHandler
+from IPython.zmq.serialize import (
     unserialize_object, serialize_object, pack_apply_message, unpack_apply_message
 )
 
@@ -187,9 +186,14 @@ def disambiguate_ip_address(ip, location=None):
     """turn multi-ip interfaces '0.0.0.0' and '*' into connectable
     ones, based on the location (default interpretation of location is localhost)."""
     if ip in ('0.0.0.0', '*'):
-        if location is None or location in PUBLIC_IPS or not PUBLIC_IPS:
+        try:
+            external_ips = socket.gethostbyname_ex(socket.gethostname())[2]
+        except (socket.gaierror, IndexError):
+            # couldn't identify this machine, assume localhost
+            external_ips = []
+        if location is None or location in external_ips or not external_ips:
             # If location is unspecified or cannot be determined, assume local
-            ip = LOCALHOST
+            ip='127.0.0.1'
         elif location:
             return location
     return ip

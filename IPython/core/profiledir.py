@@ -23,10 +23,12 @@ Authors:
 
 import os
 import shutil
+import sys
 
 from IPython.config.configurable import LoggingConfigurable
+from IPython.config.loader import Config
 from IPython.utils.path import get_ipython_package_dir, expand_path
-from IPython.utils.traitlets import Unicode, Bool
+from IPython.utils.traitlets import List, Unicode, Bool
 
 #-----------------------------------------------------------------------------
 # Classes and functions

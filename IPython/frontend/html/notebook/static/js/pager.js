@@ -69,12 +69,12 @@ var IPython = (function (IPython) {
         var that = this;
 
         this.pager_element.bind('collapse_pager', function (event, extrap) {
-            var time = (extrap != undefined) ? ((extrap.duration != undefined ) ? extrap.duration : 'fast') : 'fast';
+            time = (extrap != undefined) ? ((extrap.duration != undefined ) ? extrap.duration : 'fast') : 'fast';
             that.pager_element.hide(time);
         });
 
         this.pager_element.bind('expand_pager', function (event, extrap) {
-            var time = (extrap != undefined) ? ((extrap.duration != undefined ) ? extrap.duration : 'fast') : 'fast';
+            time = (extrap != undefined) ? ((extrap.duration != undefined ) ? extrap.duration : 'fast') : 'fast';
             that.pager_element.show(time);
         });
 
@@ -152,7 +152,9 @@ var IPython = (function (IPython) {
     }
 
     Pager.prototype.append_text = function (text) {
-        this.pager_element.append($('<pre/>').html(utils.fixCarriageReturn(utils.fixConsole(text))));
+        var toinsert = $("<div/>").addClass("output_area output_stream");
+        toinsert.append($('<pre/>').html(utils.fixCarriageReturn(utils.fixConsole(text))));
+        this.pager_element.append(toinsert);
     };
 
 

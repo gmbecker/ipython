@@ -26,16 +26,16 @@ from pprint import pformat
 from IPython.core import magic_arguments
 from IPython.core import oinspect
 from IPython.core import page
-from IPython.core.error import UsageError
+from IPython.core.error import UsageError, StdinNotImplementedError
 from IPython.core.magic import  (
     Magics, compress_dhist, magics_class, line_magic, cell_magic, line_cell_magic
 )
 from IPython.testing.skipdoctest import skip_doctest
+from IPython.utils.io import file_read, nlprint
 from IPython.utils.openpy import source_to_unicode
-from IPython.utils.path import unquote_filename
+from IPython.utils.path import get_py_filename, unquote_filename
 from IPython.utils.process import abbrev_cwd
 from IPython.utils.terminal import set_term_title
-
 #-----------------------------------------------------------------------------
 # Magic implementation classes
 #-----------------------------------------------------------------------------
@@ -402,7 +402,7 @@ class OSMagics(Magics):
 
         %dhist       -> print full history\\
         %dhist n     -> print last n entries only\\
-        %dhist n1 n2 -> print entries between n1 and n2 (n2 not included)\\
+        %dhist n1 n2 -> print entries between n1 and n2 (n1 not included)\\
 
         This history is automatically maintained by the %cd command, and
         always available as the global list variable _dh. You can use %cd -<n>
@@ -424,15 +424,14 @@ class OSMagics(Magics):
                 ini,fin = max(len(dh)-(args[0]),0),len(dh)
             elif len(args) == 2:
                 ini,fin = args
-                fin = min(fin, len(dh))
             else:
                 self.arg_err(self.dhist)
                 return
         else:
             ini,fin = 0,len(dh)
-        print 'Directory history (kept in _dh)'
-        for i in range(ini, fin):
-            print "%d: %s" % (i, dh[i])
+        nlprint(dh,
+                header = 'Directory history (kept in _dh)',
+                start=ini,stop=fin)
 
     @skip_doctest
     @line_magic
@@ -711,7 +710,7 @@ class OSMagics(Magics):
         For frontends that do not support stdin (Notebook), -f is implied.
         """
         args = magic_arguments.parse_argstring(self.file, line)
-        filename = os.path.expanduser(unquote_filename(args.filename))
+        filename = unquote_filename(args.filename)
         
         if os.path.exists(filename):
             if args.amend:

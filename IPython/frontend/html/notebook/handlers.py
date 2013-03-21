@@ -28,7 +28,6 @@ import threading
 import time
 import uuid
 
-from tornado.escape import url_escape
 from tornado import web
 from tornado import websocket
 
@@ -36,11 +35,10 @@ from zmq.eventloop import ioloop
 from zmq.utils import jsonapi
 
 from IPython.external.decorator import decorator
-from IPython.kernel.zmq.session import Session
+from IPython.zmq.session import Session
 from IPython.lib.security import passwd_check
 from IPython.utils.jsonutil import date_default
 from IPython.utils.path import filefind
-from IPython.utils.py3compat import PY3
 
 try:
     from docutils.core import publish_string
@@ -185,11 +183,6 @@ class AuthenticatedHandler(RequestHandler):
         return self.application.read_only
 
     @property
-    def use_less(self):
-        """Use less instead of css in templates"""
-        return self.application.use_less
-
-    @property
     def ws_url(self):
         """websocket url matching the current request
 
@@ -201,7 +194,7 @@ class AuthenticatedHandler(RequestHandler):
         if host == '':
             host = self.request.host # get from request
         return "%s://%s" % (proto, host)
-        
+
 
 class AuthenticatedFileHandler(AuthenticatedHandler, web.StaticFileHandler):
     """static files should only be accessible when logged in"""
@@ -216,31 +209,28 @@ class ProjectDashboardHandler(AuthenticatedHandler):
     @authenticate_unless_readonly
     def get(self):
         nbm = self.application.notebook_manager
-        project = nbm.notebook_dir        
-        template = self.application.jinja2_env.get_template('projectdashboard.html')
-        self.write( template.render(
-            project=project,
-            project_component=project.split('/'),
+        project = nbm.notebook_dir
+        self.render(
+            'projectdashboard.html', project=project,
             base_project_url=self.application.ipython_app.base_project_url,
             base_kernel_url=self.application.ipython_app.base_kernel_url,
             read_only=self.read_only,
             logged_in=self.logged_in,
-            use_less=self.use_less,
-            login_available=self.login_available))
+            login_available=self.login_available
+        )
 
 
 class LoginHandler(AuthenticatedHandler):
 
-    def _render(self, message=None):        
-        template = self.application.jinja2_env.get_template('login.html')
-        self.write( template.render(
-                next=url_escape(self.get_argument('next', default=self.application.ipython_app.base_project_url)),
+    def _render(self, message=None):
+        self.render('login.html',
+                next=self.get_argument('next', default=self.application.ipython_app.base_project_url),
                 read_only=self.read_only,
                 logged_in=self.logged_in,
                 login_available=self.login_available,
                 base_project_url=self.application.ipython_app.base_project_url,
                 message=message
-        ))
+        )
 
     def get(self):
         if self.current_user:
@@ -269,13 +259,13 @@ class LogoutHandler(AuthenticatedHandler):
         else:
             message = {'warning': 'Cannot log out.  Notebook authentication '
                        'is disabled.'}
-        template = self.application.jinja2_env.get_template('logout.html')
-        self.write( template.render(        
+
+        self.render('logout.html',
                     read_only=self.read_only,
                     logged_in=self.logged_in,
                     login_available=self.login_available,
                     base_project_url=self.application.ipython_app.base_project_url,
-                    message=message))
+                    message=message)
 
 
 class NewHandler(AuthenticatedHandler):
@@ -286,6 +276,7 @@ class NewHandler(AuthenticatedHandler):
         project = nbm.notebook_dir
         notebook_id = nbm.new_notebook()
         self.redirect('/'+urljoin(self.application.ipython_app.base_project_url, notebook_id))
+
 
 class NamedNotebookHandler(AuthenticatedHandler):
 
@@ -307,8 +298,7 @@ class NamedNotebookHandler(AuthenticatedHandler):
             mathjax_url=self.application.ipython_app.mathjax_url,
             extra_javascript=self.application.ipython_app.extra_javascript,
             extra_css=self.application.ipython_app.extra_css
-
-            )
+        )
 
 
 class PrintNotebookHandler(AuthenticatedHandler):
@@ -318,10 +308,10 @@ class PrintNotebookHandler(AuthenticatedHandler):
         nbm = self.application.notebook_manager
         project = nbm.notebook_dir
         if not nbm.notebook_exists(notebook_id):
-            raise web.HTTPError(404, u'Notebook does not exist: %s' % notebook_id)        
-        template = self.application.jinja2_env.get_template('printnotebook.html')
-        self.write( template.render(
-             project=project,
+            raise web.HTTPError(404, u'Notebook does not exist: %s' % notebook_id)
+        
+        self.render(
+            'printnotebook.html', project=project,
             notebook_id=notebook_id,
             base_project_url=self.application.ipython_app.base_project_url,
             base_kernel_url=self.application.ipython_app.base_kernel_url,
@@ -330,7 +320,7 @@ class PrintNotebookHandler(AuthenticatedHandler):
             logged_in=self.logged_in,
             login_available=self.login_available,
             mathjax_url=self.application.ipython_app.mathjax_url,
-        ))
+        )
 
 #-----------------------------------------------------------------------------
 # Kernel handlers
@@ -342,7 +332,7 @@ class MainKernelHandler(AuthenticatedHandler):
     @web.authenticated
     def get(self):
         km = self.application.kernel_manager
-        self.finish(jsonapi.dumps(km.list_kernel_ids()))
+        self.finish(jsonapi.dumps(km.kernel_ids))
 
     @web.authenticated
     def post(self):
@@ -376,9 +366,9 @@ class KernelActionHandler(AuthenticatedHandler):
             km.interrupt_kernel(kernel_id)
             self.set_status(204)
         if action == 'restart':
-            km.restart_kernel(kernel_id)
-            data = {'ws_url':self.ws_url, 'kernel_id':kernel_id}
-            self.set_header('Location', '/'+kernel_id)
+            new_kernel_id = km.restart_kernel(kernel_id)
+            data = {'ws_url':self.ws_url,'kernel_id':new_kernel_id}
+            self.set_header('Location', '/'+new_kernel_id)
             self.write(jsonapi.dumps(data))
         self.finish()
 
@@ -428,7 +418,7 @@ class AuthenticatedZMQStreamHandler(ZMQStreamHandler):
     def open(self, kernel_id):
         self.kernel_id = kernel_id.decode('ascii')
         try:
-            cfg = self.application.config
+            cfg = self.application.ipython_app.config
         except AttributeError:
             # protect from the case where this is run from something other than
             # the notebook app:
@@ -446,9 +436,8 @@ class AuthenticatedZMQStreamHandler(ZMQStreamHandler):
     def _inject_cookie_message(self, msg):
         """Inject the first message, which is the document cookie,
         for authentication."""
-        if not PY3 and isinstance(msg, unicode):
-            # Cookie constructor doesn't accept unicode strings
-            # under Python 2.x for some reason
+        if isinstance(msg, unicode):
+            # Cookie can't constructor doesn't accept unicode strings for some reason
             msg = msg.encode('utf8', 'replace')
         try:
             self.request._cookies = Cookie.SimpleCookie(msg)
@@ -553,13 +542,9 @@ class IOPubHandler(AuthenticatedZMQStreamHandler):
             if not self.hb_stream.closed():
                 self.hb_stream.on_recv(None)
 
-    def _delete_kernel_data(self):
-        """Remove the kernel data and notebook mapping."""
-        self.application.kernel_manager.delete_mapping_for_kernel(self.kernel_id)
-
     def kernel_died(self):
-        self._delete_kernel_data()
-        self.application.log.error("Kernel died: %s" % self.kernel_id)
+        self.application.kernel_manager.delete_mapping_for_kernel(self.kernel_id)
+        self.application.log.error("Kernel %s failed to respond to heartbeat", self.kernel_id)
         self.write_message(
             {'header': {'msg_type': 'status'},
              'parent_header': {},
@@ -890,6 +875,25 @@ class FileFindHandler(web.StaticFileHandler):
                 return hsh[:5]
         return None
 
+
+    # make_static_url and parse_url_path totally unchanged from tornado 2.2.0
+    # but needed for tornado < 2.2.0 compat
+    @classmethod
+    def make_static_url(cls, settings, path):
+        """Constructs a versioned url for the given path.
+
+        This method may be overridden in subclasses (but note that it is
+        a class method rather than an instance method).
+
+        ``settings`` is the `Application.settings` dictionary.  ``path``
+        is the static path being requested.  The url returned should be
+        relative to the current host.
+        """
+        static_url_prefix = settings.get('static_url_prefix', '/static/')
+        version_hash = cls.get_version(settings, path)
+        if version_hash:
+            return static_url_prefix + path + "?v=" + version_hash
+        return static_url_prefix + path
 
     def parse_url_path(self, url_path):
         """Converts a static URL path into a filesystem path.

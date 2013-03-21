@@ -67,7 +67,7 @@ def test_compiler_check_cache():
     cp = compilerop.CachingCompiler()
     cp.cache('x=1', 99)
     # Ensure now that after clearing the cache, our entries survive
-    linecache.checkcache()
+    cp.check_cache()
     for k in linecache.cache:
         if k.startswith('<ipython-input-99'):
             break

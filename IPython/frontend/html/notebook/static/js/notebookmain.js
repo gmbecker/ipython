@@ -34,22 +34,20 @@ $(document).ready(function () {
     IPython.mathjaxutils.init();
 
     IPython.read_only = $('body').data('readOnly') === 'True';
-    $('#ipython-main-app').addClass('border-box-sizing');
-    $('div#notebook_panel').addClass('border-box-sizing');
+    $('div#main_app').addClass('border-box-sizing ui-widget');
+    $('div#notebook_panel').addClass('border-box-sizing ui-widget');
     // The header's bottom border is provided by the menu bar so we remove it.
     $('div#header').css('border-bottom-style','none');
-
-    var baseProjectUrl = $('body').data('baseProjectUrl')
 
     IPython.page = new IPython.Page();
     IPython.markdown_converter = new Markdown.Converter();
     IPython.layout_manager = new IPython.LayoutManager();
     IPython.pager = new IPython.Pager('div#pager', 'div#pager_splitter');
     IPython.quick_help = new IPython.QuickHelp('span#quick_help_area');
-    IPython.login_widget = new IPython.LoginWidget('span#login_widget',{baseProjectUrl:baseProjectUrl});
-    IPython.notebook = new IPython.Notebook('div#notebook',{baseProjectUrl:baseProjectUrl, read_only:IPython.read_only});
+    IPython.login_widget = new IPython.LoginWidget('span#login_widget');
+    IPython.notebook = new IPython.Notebook('div#notebook');
     IPython.save_widget = new IPython.SaveWidget('span#save_widget');
-    IPython.menubar = new IPython.MenuBar('#menubar',{baseProjectUrl:baseProjectUrl})
+    IPython.menubar = new IPython.MenuBar('#menubar')
     IPython.toolbar = new IPython.MainToolBar('#maintoolbar')
     IPython.tooltip = new IPython.Tooltip()
     IPython.notification_area = new IPython.NotificationArea('#notification_area')
@@ -82,7 +80,7 @@ $(document).ready(function () {
     IPython.layout_manager.do_resize();
     $([IPython.events]).on('notebook_loaded.Notebook', function () {
         IPython.layout_manager.do_resize();
-    });
+    })
     IPython.notebook.load_notebook($('body').data('notebookId'));
 
 });

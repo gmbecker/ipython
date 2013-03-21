@@ -24,8 +24,11 @@ Authors:
 # Imports
 #-----------------------------------------------------------------------------
 
+import __builtin__
+import codeop
 import re
 
+from IPython.core.alias import AliasManager
 from IPython.core.autocall import IPyAutocall
 from IPython.config.configurable import Configurable
 from IPython.core.inputsplitter import (
@@ -39,11 +42,13 @@ from IPython.core.inputsplitter import (
     ESC_PAREN,
 )
 from IPython.core.macro import Macro
-from IPython.core.splitinput import LineInfo
+from IPython.core.splitinput import split_user_input, LineInfo
+from IPython.core import page
 
 from IPython.utils.traitlets import (
-    List, Integer, Unicode, CBool, Bool, Instance, CRegExp
+    List, Integer, Any, Unicode, CBool, Bool, Instance, CRegExp
 )
+from IPython.utils.autoattr import auto_attr
 
 #-----------------------------------------------------------------------------
 # Global utilities, errors and constants
@@ -318,6 +323,9 @@ class PrefilterManager(Configurable):
 
         normal_handler = self.get_handler_by_name('normal')
         if not stripped:
+            if not continue_prompt:
+                self.shell.displayhook.prompt_count -= 1
+
             return normal_handler.handle(line_info)
 
         # special handlers are only allowed for single line statements

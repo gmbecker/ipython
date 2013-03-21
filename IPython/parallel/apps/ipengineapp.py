@@ -36,13 +36,11 @@ from IPython.parallel.apps.baseapp import (
     base_flags,
     catch_config_error,
 )
-from IPython.kernel.zmq.log import EnginePUBHandler
-from IPython.kernel.zmq.ipkernel import Kernel
-from IPython.kernel.zmq.kernelapp import IPKernelApp
-from IPython.kernel.zmq.session import (
+from IPython.zmq.log import EnginePUBHandler
+from IPython.zmq.ipkernel import Kernel, IPKernelApp
+from IPython.zmq.session import (
     Session, session_aliases, session_flags
 )
-from IPython.kernel.zmq.zmqshell import ZMQInteractiveShell
 
 from IPython.config.configurable import Configurable
 
@@ -145,7 +143,7 @@ class IPEngineApp(BaseParallelApplication):
     description = _description
     examples = _examples
     config_file_name = Unicode(default_config_file_name)
-    classes = List([ZMQInteractiveShell, ProfileDir, Session, EngineFactory, Kernel, MPI])
+    classes = List([ProfileDir, Session, EngineFactory, Kernel, MPI])
 
     startup_script = Unicode(u'', config=True,
         help='specify a script to be run at startup')

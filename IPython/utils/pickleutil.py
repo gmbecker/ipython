@@ -38,10 +38,6 @@ from IPython.config import Application
 
 if py3compat.PY3:
     buffer = memoryview
-    class_type = type
-else:
-    from types import ClassType
-    class_type = (type, ClassType)
 
 #-------------------------------------------------------------------------------
 # Classes
@@ -114,30 +110,6 @@ class CannedFunction(CannedObject):
         newFunc = FunctionType(self.code, g, self.__name__, defaults)
         return newFunc
 
-class CannedClass(CannedObject):
-
-    def __init__(self, cls):
-        self._check_type(cls)
-        self.name = cls.__name__
-        self.old_style = not isinstance(cls, type)
-        self._canned_dict = {}
-        for k,v in cls.__dict__.items():
-            if k not in ('__weakref__', '__dict__'):
-                self._canned_dict[k] = can(v)
-        if self.old_style:
-            mro = []
-        else:
-            mro = cls.mro()
-        
-        self.parents = [ can(c) for c in mro[1:] ]
-        self.buffers = []
-
-    def _check_type(self, obj):
-        assert isinstance(obj, class_type), "Not a class type"
-
-    def get_object(self, g=None):
-        parents = tuple(uncan(p, g) for p in self.parents)
-        return type(self.name, parents, uncan_dict(self._canned_dict, g=g))
 
 class CannedArray(CannedObject):
     def __init__(self, obj):
@@ -208,19 +180,6 @@ def _import_mapping(mapping, original=None):
             else:
                 mapping[cls] = mapping.pop(key)
 
-def istype(obj, check):
-    """like isinstance(obj, check), but strict
-    
-    This won't catch subclasses.
-    """
-    if isinstance(check, tuple):
-        for cls in check:
-            if type(obj) is cls:
-                return True
-        return False
-    else:
-        return type(obj) is check
-
 def can(obj):
     """prepare an object for pickling"""
     
@@ -230,7 +189,7 @@ def can(obj):
         if isinstance(cls, basestring):
             import_needed = True
             break
-        elif istype(obj, cls):
+        elif isinstance(obj, cls):
             return canner(obj)
     
     if import_needed:
@@ -241,15 +200,9 @@ def can(obj):
     
     return obj
 
-def can_class(obj):
-    if isinstance(obj, class_type) and obj.__module__ == '__main__':
-        return CannedClass(obj)
-    else:
-        return obj
-
 def can_dict(obj):
     """can the *values* of a dict"""
-    if istype(obj, dict):
+    if isinstance(obj, dict):
         newobj = {}
         for k, v in obj.iteritems():
             newobj[k] = can(v)
@@ -257,11 +210,9 @@ def can_dict(obj):
     else:
         return obj
 
-sequence_types = (list, tuple, set)
-
 def can_sequence(obj):
     """can the elements of a sequence"""
-    if istype(obj, sequence_types):
+    if isinstance(obj, (list, tuple)):
         t = type(obj)
         return t([can(i) for i in obj])
     else:
@@ -287,7 +238,7 @@ def uncan(obj, g=None):
     return obj
 
 def uncan_dict(obj, g=None):
-    if istype(obj, dict):
+    if isinstance(obj, dict):
         newobj = {}
         for k, v in obj.iteritems():
             newobj[k] = uncan(v,g)
@@ -296,7 +247,7 @@ def uncan_dict(obj, g=None):
         return obj
 
 def uncan_sequence(obj, g=None):
-    if istype(obj, sequence_types):
+    if isinstance(obj, (list, tuple)):
         t = type(obj)
         return t([uncan(i,g) for i in obj])
     else:
@@ -315,7 +266,6 @@ can_map = {
     FunctionType : CannedFunction,
     bytes : CannedBytes,
     buffer : CannedBuffer,
-    class_type : can_class,
 }
 
 uncan_map = {

@@ -96,41 +96,13 @@ def doctest_run_option_parser():
     In [2]: %run print_argv.py print*.py
     ['print_argv.py']
 
-    In [3]: %run -G print_argv.py print*.py
+    In [3]: %run print_argv.py print\\*.py
     ['print*.py']
 
-    """
-
-
-@dec.skip_win32
-def doctest_run_option_parser_for_posix():
-    r"""Test option parser in %run (Linux/OSX specific).
-
-    You need double quote to escape glob in POSIX systems:
-
-    In [1]: %run print_argv.py print\\*.py
-    ['print*.py']
-
-    You can't use quote to escape glob in POSIX systems:
-
-    In [2]: %run print_argv.py 'print*.py'
+    In [4]: %run print_argv.py 'print*.py'
     ['print_argv.py']
 
-    """
-
-
-@dec.skip_if_not_win32
-def doctest_run_option_parser_for_windows():
-    r"""Test option parser in %run (Windows specific).
-
-    In Windows, you can't escape ``*` `by backslash:
-
-    In [1]: %run print_argv.py print\\*.py
-    ['print\\*.py']
-
-    You can use quote to escape glob:
-
-    In [2]: %run print_argv.py 'print*.py'
+    In [5]: %run -G print_argv.py print*.py
     ['print*.py']
 
     """
@@ -298,42 +270,3 @@ tclass.py: deleting object: C-third
         na = os.path.join(mydir, 'nonascii.py')
         _ip.magic('run "%s"' % na)
         nt.assert_equal(_ip.user_ns['u'], u'Ўт№Ф')
-
-    def test_run_py_file_attribute(self):
-        """Test handling of `__file__` attribute in `%run <file>.py`."""
-        src = "t = __file__\n"
-        self.mktmp(src)
-        _missing = object()
-        file1 = _ip.user_ns.get('__file__', _missing)
-        _ip.magic('run %s' % self.fname)
-        file2 = _ip.user_ns.get('__file__', _missing)
-
-        # Check that __file__ was equal to the filename in the script's
-        # namespace.
-        nt.assert_equal(_ip.user_ns['t'], self.fname)
-
-        # Check that __file__ was not leaked back into user_ns.
-        nt.assert_equal(file1, file2)
-
-    def test_run_ipy_file_attribute(self):
-        """Test handling of `__file__` attribute in `%run <file.ipy>`."""
-        src = "t = __file__\n"
-        self.mktmp(src, ext='.ipy')
-        _missing = object()
-        file1 = _ip.user_ns.get('__file__', _missing)
-        _ip.magic('run %s' % self.fname)
-        file2 = _ip.user_ns.get('__file__', _missing)
-
-        # Check that __file__ was equal to the filename in the script's
-        # namespace.
-        nt.assert_equal(_ip.user_ns['t'], self.fname)
-
-        # Check that __file__ was not leaked back into user_ns.
-        nt.assert_equal(file1, file2)
-
-    def test_run_formatting(self):
-        """ Test that %run -t -N<N> does not raise a TypeError for N > 1."""
-        src = "pass"
-        self.mktmp(src)
-        _ip.magic('run -t -N 1 %s' % self.fname)
-        _ip.magic('run -t -N 10 %s' % self.fname)

@@ -15,9 +15,10 @@
 # Stdlib
 import inspect
 import io
+import json
 import os
-import re
 import sys
+from urllib2 import urlopen
 
 # Our own packages
 from IPython.core.error import TryNext, StdinNotImplementedError, UsageError
@@ -25,8 +26,9 @@ from IPython.core.macro import Macro
 from IPython.core.magic import Magics, magics_class, line_magic
 from IPython.core.oinspect import find_file, find_source_lines
 from IPython.testing.skipdoctest import skip_doctest
+from IPython.utils import openpy
 from IPython.utils import py3compat
-from IPython.utils.contexts import preserve_keys
+from IPython.utils.io import file_read
 from IPython.utils.path import get_py_filename, unquote_filename
 from IPython.utils.warn import warn
 
@@ -36,13 +38,6 @@ from IPython.utils.warn import warn
 
 # Used for exception handling in magic_edit
 class MacroToEdit(ValueError): pass
-
-ipython_input_pat = re.compile(r"<ipython\-input\-(\d+)-[a-z\d]+>$")
-
-class InteractivelyDefined(Exception):
-    """Exception for interactively defined variable in magic_edit"""
-    def __init__(self, index):
-        self.index = index
 
 
 @magics_class
@@ -137,8 +132,6 @@ class CodeMagics(Magics):
             print e.args[0]
             return
 
-        from urllib2 import urlopen  # Deferred import
-        import json
         post_data = json.dumps({
           "description": opts.get('d', "Pasted from IPython"),
           "public": True,
@@ -243,6 +236,15 @@ class CodeMagics(Magics):
             if args not in shell.user_ns:
                 args = last_call[1]
 
+        # use last_call to remember the state of the previous call, but don't
+        # let it be clobbered by successive '-p' calls.
+        try:
+            last_call[0] = shell.displayhook.prompt_count
+            if not opts_prev:
+                last_call[1] = args
+        except:
+            pass
+
         # by default this is done with temp files, except when the given
         # arg is a filename
         use_temp = True
@@ -272,7 +274,7 @@ class CodeMagics(Magics):
                     if filename is None:
                         warn("Argument given (%s) can't be found as a variable "
                              "or as a filename." % args)
-                        return (None, None, None)
+                        return
                     use_temp = False
 
                 except DataIsObject:
@@ -299,18 +301,12 @@ class CodeMagics(Magics):
                                     # target instead
                                     data = attr
                                     break
-                        
-                        m = ipython_input_pat.match(os.path.basename(filename))
-                        if m:
-                            raise InteractivelyDefined(int(m.groups()[0]))
-                        
+
                         datafile = 1
                     if filename is None:
                         filename = make_filename(args)
                         datafile = 1
-                        if filename is not None:
-                            # only warn about this if we get a real name
-                            warn('Could not find file where `%s` is defined.\n'
+                        warn('Could not find file where `%s` is defined.\n'
                              'Opening a file named `%s`' % (args, filename))
                     # Now, make sure we can actually read the source (if it was
                     # in a temp file it's gone by now).
@@ -320,24 +316,14 @@ class CodeMagics(Magics):
                         if lineno is None:
                             filename = make_filename(args)
                             if filename is None:
-                                warn('The file where `%s` was defined '
-                                     'cannot be read or found.' % data)
-                                return (None, None, None)
+                                warn('The file `%s` where `%s` was defined '
+                                     'cannot be read.' % (filename, data))
+                                return
                     use_temp = False
 
         if use_temp:
             filename = shell.mktempfile(data)
             print 'IPython will make a temporary file named:',filename
-
-        # use last_call to remember the state of the previous call, but don't
-        # let it be clobbered by successive '-p' calls.
-        try:
-            last_call[0] = shell.displayhook.prompt_count
-            if not opts_prev:
-                last_call[1] = args
-        except:
-            pass
-
 
         return filename, lineno, use_temp
 
@@ -505,15 +491,6 @@ class CodeMagics(Magics):
         except MacroToEdit as e:
             self._edit_macro(args, e.args[0])
             return
-        except InteractivelyDefined as e:
-            print "Editing In[%i]" % e.index
-            args = str(e.index)
-            filename, lineno, is_temp = self._find_edit_target(self.shell, 
-                                                       args, opts, last_call)
-        if filename is None:
-            # nothing was found, warnings have already been issued,
-            # just give up.
-            return
 
         # do actual editing here
         print 'Editing...',
@@ -530,23 +507,18 @@ class CodeMagics(Magics):
         # XXX TODO: should this be generalized for all string vars?
         # For now, this is special-cased to blocks created by cpaste
         if args.strip() == 'pasted_block':
-            with open(filename, 'r') as f:
-                self.shell.user_ns['pasted_block'] = f.read()
+            self.shell.user_ns['pasted_block'] = file_read(filename)
 
         if 'x' in opts:  # -x prevents actual execution
             print
         else:
             print 'done. Executing edited code...'
-            with preserve_keys(self.shell.user_ns, '__file__'):
-                if not is_temp:
-                    self.shell.user_ns['__file__'] = filename
-                if 'r' in opts:    # Untranslated IPython code
-                    with open(filename, 'r') as f:
-                        source = f.read()
-                    self.shell.run_cell(source, store_history=False)
-                else:
-                    self.shell.safe_execfile(filename, self.shell.user_ns,
-                                             self.shell.user_ns)
+            if 'r' in opts:    # Untranslated IPython code
+                self.shell.run_cell(file_read(filename),
+                                                    store_history=False)
+            else:
+                self.shell.safe_execfile(filename, self.shell.user_ns,
+                                         self.shell.user_ns)
 
         if is_temp:
             try:

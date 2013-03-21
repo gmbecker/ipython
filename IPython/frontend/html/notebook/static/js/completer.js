@@ -67,16 +67,18 @@ var IPython = (function (IPython) {
 
 
     var Completer = function (cell) {
-        this.cell = cell;
-        this.editor = cell.code_mirror;
-        var that = this;
-        $([IPython.events]).on('status_busy.Kernel', function () {
-            that.skip_kernel_completion = true;
-        });
-        $([IPython.events]).on('status_idle.Kernel', function () {
-            that.skip_kernel_completion = false;
-        });
-    };
+            this.editor = cell.code_mirror;
+            var that = this;
+            $([IPython.events]).on('status_busy.Kernel', function () {
+                that.skip_kernel_completion = true;
+            });
+            $([IPython.events]).on('status_idle.Kernel', function () {
+                that.skip_kernel_completion = false;
+            });
+
+
+        };
+
 
 
     Completer.prototype.startCompletion = function () {
@@ -126,7 +128,7 @@ var IPython = (function (IPython) {
             var callbacks = {
                 'complete_reply': $.proxy(this.finish_completing, this)
             };
-            this.cell.kernel.complete(line, cur.ch, callbacks);
+            IPython.notebook.kernel.complete(line, cur.ch, callbacks);
         }
     };
 

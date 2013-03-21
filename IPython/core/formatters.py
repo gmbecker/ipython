@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 """Display formatters.
 
-Inheritance diagram:
-
-.. inheritance-diagram:: IPython.core.formatters
-   :parts: 3
 
 Authors:
 

@@ -47,7 +47,7 @@ var IPython = (function (IPython) {
         if(this.widget_dict[name] == undefined) {
             return this.new_notification_widget(name);
         }
-        return this.get_widget(name);
+    return this.get_widget(name);
     };
 
     NotificationArea.prototype.get_widget = function(name) {
@@ -93,70 +93,24 @@ var IPython = (function (IPython) {
 
         $([IPython.events]).on('status_dead.Kernel',function () {
             var dialog = $('<div/>');
-            dialog.html('The kernel has died, would you like to restart it?' +
-                ' If you do not restart the kernel, you will be able to save' +
-                ' the notebook, but running code will not work until the notebook' +
-                ' is reopened.'
-            );
+            dialog.html('The kernel has died, would you like to restart it? If you do not restart the kernel, you will be able to save the notebook, but running code will not work until the notebook is reopened.');
             $(document).append(dialog);
             dialog.dialog({
                 resizable: false,
                 modal: true,
                 title: "Dead kernel",
-                close: function(event, ui) {$(this).dialog('destroy').remove();},
                 buttons : {
                     "Restart": function () {
                         $([IPython.events]).trigger('status_restarting.Kernel');
                         IPython.notebook.start_kernel();
                         $(this).dialog('close');
                     },
-                    "Don't restart": function () {
+                    "Continue running": function () {
                         $(this).dialog('close');
                     }
                 }
             });
         });
-
-        $([IPython.events]).on('websocket_closed.Kernel', function (event, data) {
-            var kernel = data.kernel;
-            var ws_url = data.ws_url;
-            var early = data.early;
-            var msg;
-            if (!early) {
-                    knw.set_message('Reconnecting WebSockets', 1000);
-                    setTimeout(function () {
-                        kernel.start_channels();
-                    }, 5000);
-                return;
-            }
-            console.log('WebSocket connection failed: ', ws_url)
-            msg = "A WebSocket connection to could not be established." +
-                " You will NOT be able to run code. Check your" +
-                " network connection or notebook server configuration.";
-            var dialog = $('<div/>');
-            dialog.html(msg);
-            $(document).append(dialog);
-            dialog.dialog({
-                resizable: false,
-                modal: true,
-                title: "WebSocket connection failed",
-                closeText: "",
-                close: function(event, ui) {$(this).dialog('destroy').remove();},
-                buttons : {
-                    "OK": function () {
-                        $(this).dialog('close');
-                    },
-                    "Reconnect": function () {
-                        knw.set_message('Reconnecting WebSockets', 1000);
-                        setTimeout(function () {
-                            kernel.start_channels();
-                        }, 5000);
-                        $(this).dialog('close');
-                    }
-                }
-            });
-        });
-
 
         var nnw = this.new_notification_widget('notebook');
 

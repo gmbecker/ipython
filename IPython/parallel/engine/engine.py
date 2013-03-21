@@ -24,7 +24,6 @@ from zmq.eventloop import ioloop, zmqstream
 
 from IPython.external.ssh import tunnel
 # internal
-from IPython.utils.localinterfaces import LOCALHOST
 from IPython.utils.traitlets import (
     Instance, Dict, Integer, Type, Float, Integer, Unicode, CBytes, Bool
 )
@@ -34,20 +33,19 @@ from IPython.parallel.controller.heartmonitor import Heart
 from IPython.parallel.factory import RegistrationFactory
 from IPython.parallel.util import disambiguate_url
 
-from IPython.kernel.zmq.session import Message
-from IPython.kernel.zmq.ipkernel import Kernel
-from IPython.kernel.zmq.kernelapp import IPKernelApp
+from IPython.zmq.session import Message
+from IPython.zmq.ipkernel import Kernel, IPKernelApp
 
 class EngineFactory(RegistrationFactory):
     """IPython engine"""
 
     # configurables:
-    out_stream_factory=Type('IPython.kernel.zmq.iostream.OutStream', config=True,
+    out_stream_factory=Type('IPython.zmq.iostream.OutStream', config=True,
         help="""The OutStream for handling stdout/err.
-        Typically 'IPython.kernel.zmq.iostream.OutStream'""")
-    display_hook_factory=Type('IPython.kernel.zmq.displayhook.ZMQDisplayHook', config=True,
+        Typically 'IPython.zmq.iostream.OutStream'""")
+    display_hook_factory=Type('IPython.zmq.displayhook.ZMQDisplayHook', config=True,
         help="""The class for handling displayhook.
-        Typically 'IPython.kernel.zmq.displayhook.ZMQDisplayHook'""")
+        Typically 'IPython.zmq.displayhook.ZMQDisplayHook'""")
     location=Unicode(config=True,
         help="""The location (an IP address) of the controller.  This is
         used for disambiguating URLs, to determine whether
@@ -184,13 +182,13 @@ class EngineFactory(RegistrationFactory):
             if self.max_heartbeat_misses > 0:
                 # Add a monitor socket which will record the last time a ping was seen
                 mon = self.context.socket(zmq.SUB)
-                mport = mon.bind_to_random_port('tcp://%s' % LOCALHOST)
+                mport = mon.bind_to_random_port('tcp://127.0.0.1')
                 mon.setsockopt(zmq.SUBSCRIBE, b"")
                 self._hb_listener = zmqstream.ZMQStream(mon, self.loop)
                 self._hb_listener.on_recv(self._report_ping)
             
             
-                hb_monitor = "tcp://%s:%i" % (LOCALHOST, mport)
+                hb_monitor = "tcp://127.0.0.1:%i"%mport
 
             heart = Heart(hb_ping, hb_pong, hb_monitor , heart_id=identity)
             heart.start()

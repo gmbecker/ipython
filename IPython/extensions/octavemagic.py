@@ -258,7 +258,7 @@ class OctaveMagics(Magics):
                 self._oct.put(input, val)
 
         # generate plots in a temporary directory
-        plot_dir = tempfile.mkdtemp().replace('\\', '/')
+        plot_dir = tempfile.mkdtemp()
         if args.size is not None:
             size = args.size
         else:
@@ -362,6 +362,10 @@ __doc__ = __doc__.format(
     )
 
 
+_loaded = False
 def load_ipython_extension(ip):
     """Load the extension in IPython."""
-    ip.register_magics(OctaveMagics)
+    global _loaded
+    if not _loaded:
+        ip.register_magics(OctaveMagics)
+        _loaded = True

@@ -15,8 +15,8 @@ $(document).ready(function () {
     IPython.mathjaxutils.init();
 
     IPython.read_only = $('body').data('readOnly') === 'True';
-    $('#ipython-main-app').addClass('border-box-sizing');
-    $('div#notebook_panel').addClass('border-box-sizing');
+    $('div#main_app').addClass('border-box-sizing ui-widget');
+    $('div#notebook_panel').addClass('border-box-sizing ui-widget');
 
     IPython.page = new IPython.Page();
     IPython.markdown_converter = new Markdown.Converter();

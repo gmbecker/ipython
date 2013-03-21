@@ -2,11 +2,6 @@
 
 """Classes and functions for kernel related errors and exceptions.
 
-Inheritance diagram:
-
-.. inheritance-diagram:: IPython.parallel.error
-   :parts: 3
-
 Authors:
 
 * Brian Granger
@@ -232,8 +227,6 @@ class TaskRejectError(KernelError):
 
 class CompositeError(RemoteError):
     """Error for representing possibly multiple errors on engines"""
-    tb_limit = 4 # limit on how many tracebacks to draw
-    
     def __init__(self, message, elist):
         Exception.__init__(self, *(message, elist))
         # Don't use pack_exception because it will conflict with the .message
@@ -258,28 +251,22 @@ class CompositeError(RemoteError):
 
     def __str__(self):
         s = str(self.msg)
-        for en, ev, etb, ei in self.elist[:self.tb_limit]:
+        for en, ev, etb, ei in self.elist:
             engine_str = self._get_engine_str(ei)
             s = s + '\n' + engine_str + en + ': ' + str(ev)
-        if len(self.elist) > self.tb_limit:
-            s = s + '\n.... %i more exceptions ...' % (len(self.elist) - self.tb_limit)
         return s
 
     def __repr__(self):
-        return "CompositeError(%i)" % len(self.elist)
+        return "CompositeError(%i)"%len(self.elist)
     
     def render_traceback(self, excid=None):
         """render one or all of my tracebacks to a list of lines"""
         lines = []
         if excid is None:
-            for (en,ev,etb,ei) in self.elist[:self.tb_limit]:
+            for (en,ev,etb,ei) in self.elist:
                 lines.append(self._get_engine_str(ei))
                 lines.extend((etb or 'No traceback available').splitlines())
                 lines.append('')
-            if len(self.elist) > self.tb_limit:
-                lines.append(
-                    '... %i more exceptions ...' % (len(self.elist) - self.tb_limit)
-                )
         else:
             try:
                 en,ev,etb,ei = self.elist[excid]

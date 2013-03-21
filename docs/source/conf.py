@@ -59,8 +59,6 @@ extensions = [
 if ON_RTD:
     # Remove extensions not currently supported on RTD
     extensions.remove('matplotlib.sphinxext.only_directives')
-    extensions.remove('matplotlib.sphinxext.mathmpl')
-    extensions.remove('matplotlib.sphinxext.plot_directive')
     extensions.remove('ipython_directive')
 
 # Add any paths that contain templates here, relative to this directory.

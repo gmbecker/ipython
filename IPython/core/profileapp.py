@@ -21,11 +21,12 @@ Authors:
 # Imports
 #-----------------------------------------------------------------------------
 
+import logging
 import os
 
-from IPython.config.application import Application
+from IPython.config.application import Application, boolean_flag
 from IPython.core.application import (
-    BaseIPythonApplication, base_flags
+    BaseIPythonApplication, base_flags, base_aliases
 )
 from IPython.core.profiledir import ProfileDir
 from IPython.utils.path import get_ipython_dir, get_ipython_package_dir

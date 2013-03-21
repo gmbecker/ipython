@@ -2,11 +2,6 @@
 """
 A base class for objects that are configurable.
 
-Inheritance diagram:
-
-.. inheritance-diagram:: IPython.config.configurable
-   :parts: 3
-
 Authors:
 
 * Brian Granger
@@ -51,7 +46,7 @@ class MultipleInstanceError(ConfigurableError):
 
 class Configurable(HasTraits):
 
-    config = Instance(Config, (), {})
+    config = Instance(Config,(),{})
     created = None
 
     def __init__(self, **kwargs):
@@ -72,7 +67,7 @@ class Configurable(HasTraits):
 
             class MyConfigurable(Configurable):
                 def __init__(self, config=None):
-                    super(MyConfigurable, self).__init__(config=config)
+                    super(MyConfigurable, self).__init__(config)
                     # Then any other code you need to finish initialization.
 
         This ensures that instances will be configured properly.
@@ -165,7 +160,7 @@ class Configurable(HasTraits):
         final_help = []
         final_help.append(u'%s options' % cls.__name__)
         final_help.append(len(final_help[0])*u'-')
-        for k, v in sorted(cls.class_traits(config=True).iteritems()):
+        for k,v in sorted(cls.class_traits(config=True).iteritems()):
             help = cls.class_get_trait_help(v, inst)
             final_help.append(help)
         return '\n'.join(final_help)
@@ -218,7 +213,7 @@ class Configurable(HasTraits):
 
         # section header
         breaker = '#' + '-'*78
-        s = "# %s configuration" % cls.__name__
+        s = "# %s configuration"%cls.__name__
         lines = [breaker, s, breaker, '']
         # get the description trait
         desc = cls.class_traits().get('description')
@@ -245,7 +240,7 @@ class Configurable(HasTraits):
             lines.append(c('%s will inherit config from: %s'%(cls.__name__, pstr)))
             lines.append('')
 
-        for name, trait in cls.class_traits(config=True).iteritems():
+        for name,trait in cls.class_traits(config=True).iteritems():
             help = trait.get_metadata('help') or ''
             lines.append(c(help))
             lines.append('# c.%s.%s = %r'%(cls.__name__, name, trait.get_default_value()))

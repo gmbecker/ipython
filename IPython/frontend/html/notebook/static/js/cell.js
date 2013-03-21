@@ -8,41 +8,20 @@
 //============================================================================
 // Cell
 //============================================================================
-/**
- * An extendable module that provide base functionnality to create cell for notebook.
- * @module IPython
- * @namespace IPython
- * @submodule Cell
- */
 
 var IPython = (function (IPython) {
 
     var utils = IPython.utils;
 
-    /**
-     * The Base `Cell` class from which to inherit
-     * @class Cell
-     **/
 
-    /*
-     * @constructor
-     *
-     * @param {object|undefined} [options]
-     *     @param [options.cm_config] {object} config to pass to CodeMirror, will extend default parameters
-     */
-    var Cell = function (options) {
-
-        options = options || {};
-        // superclass default overwrite our default
-        this.cm_config = $.extend({},Cell.cm_default,options.cm_config);
-
+    var Cell = function () {
         this.placeholder = this.placeholder || '';
         this.read_only = false;
         this.selected = false;
         this.element = null;
         this.metadata = {};
         // load this from metadata later ?
-        this.user_highlight = 'auto';
+        this.user_highlight == 'auto';
         this.create_element();
         if (this.element !== null) {
             this.element.data("cell", this);
@@ -51,28 +30,11 @@ var IPython = (function (IPython) {
         this.cell_id = utils.uuid();
     };
 
-    Cell.cm_default = {
-            indentUnit : 4,
-            readOnly: this.read_only,
-    };
+
+    // Subclasses must implement create_element.
+    Cell.prototype.create_element = function () {};
 
 
-    /**
-     * Empty. Subclasses must implement create_element.
-     * This should contain all the code to create the DOM element in notebook
-     * and will be called by Base Class constructor.
-     * @method create_element
-     */
-    Cell.prototype.create_element = function () {
-    };
-
-
-    /**
-     * Subclasses can implement override bind_events.
-     * Be carefull to call the parent method when overwriting as it fires event.
-     * this will be triggerd after create_element in constructor.
-     * @method bind_events
-     */
     Cell.prototype.bind_events = function () {
         var that = this;
         // We trigger events so that Cell doesn't have to depend on Notebook.
@@ -88,80 +50,48 @@ var IPython = (function (IPython) {
         });
     };
 
-    /**
-     * Triger typsetting of math by mathjax on current cell element
-     * @method typeset
-     */
+
+    // typeset with MathJax if MathJax is available
     Cell.prototype.typeset = function () {
         if (window.MathJax){
-            var cell_math = this.element.get(0);
-            MathJax.Hub.Queue(["Typeset",MathJax.Hub,cell_math]);
+            MathJax.Hub.Queue(["Typeset",MathJax.Hub]);
         }
     };
 
-    /**
-     * should be triggerd when cell is selected
-     * @method select
-     */
+
     Cell.prototype.select = function () {
-        this.element.addClass('selected');
+        this.element.addClass('ui-widget-content ui-corner-all');
         this.selected = true;
     };
 
 
-    /**
-     * should be triggerd when cell is unselected
-     * @method unselect
-     */
     Cell.prototype.unselect = function () {
-        this.element.removeClass('selected');
+        this.element.removeClass('ui-widget-content ui-corner-all');
         this.selected = false;
     };
 
-    /**
-     * should be overritten by subclass
-     * @method get_text
-     */
+
     Cell.prototype.get_text = function () {
     };
 
-    /**
-     * should be overritten by subclass
-     * @method set_text
-     * @param {string} text
-     */
+
     Cell.prototype.set_text = function (text) {
     };
 
-    /**
-     * Refresh codemirror instance
-     * @method refresh
-     */
+
     Cell.prototype.refresh = function () {
         this.code_mirror.refresh();
     };
 
 
-    /**
-     * should be overritten by subclass
-     * @method  edit
-     **/
     Cell.prototype.edit = function () {
     };
 
 
-    /**
-     * should be overritten by subclass
-     * @method render
-     **/
     Cell.prototype.render = function () {
     };
 
-    /**
-     * should be overritten by subclass
-     * serialise cell to json.
-     * @method toJSON
-     **/
+
     Cell.prototype.toJSON = function () {
         var data = {};
         data.metadata = this.metadata;
@@ -169,31 +99,18 @@ var IPython = (function (IPython) {
     };
 
 
-    /**
-     * should be overritten by subclass
-     * @method fromJSON
-     **/
     Cell.prototype.fromJSON = function (data) {
         if (data.metadata !== undefined) {
             this.metadata = data.metadata;
         }
-        this.celltoolbar.rebuild();
     };
 
 
-    /**
-     * can the cell be splitted in 2 cells.
-     * @method is_splittable
-     **/
     Cell.prototype.is_splittable = function () {
         return true;
     };
 
 
-    /**
-     * @return {String} - the text before the cursor
-     * @method get_pre_cursor
-     **/
     Cell.prototype.get_pre_cursor = function () {
         var cursor = this.code_mirror.getCursor();
         var text = this.code_mirror.getRange({line:0,ch:0}, cursor);
@@ -202,10 +119,6 @@ var IPython = (function (IPython) {
     }
 
 
-    /**
-     * @return {String} - the text after the cursor
-     * @method get_post_cursor
-     **/
     Cell.prototype.get_post_cursor = function () {
         var cursor = this.code_mirror.getCursor();
         var last_line_num = this.code_mirror.lineCount()-1;
@@ -217,15 +130,9 @@ var IPython = (function (IPython) {
     };
 
 
-    /** Grow the cell by hand. This is used upon reloading from JSON, when the
-     *  autogrow handler is not called.
-     *
-     *  could be made static
-     *
-     *  @param {Dom element} - element
-     *  @method grow
-     **/
     Cell.prototype.grow = function(element) {
+        // Grow the cell by hand. This is used upon reloading from JSON, when the
+        // autogrow handler is not called.
         var dom = element.get(0);
         var lines_count = 0;
         // modified split rule from
@@ -239,42 +146,21 @@ var IPython = (function (IPython) {
         }
     };
 
-    /**
-     * Show/Hide CodeMirror LineNumber
-     * @method show_line_numbers
-     *
-     * @param value {Bool}  show (true), or hide (false) the line number in CodeMirror
-     **/
-    Cell.prototype.show_line_numbers = function (value) {
-        this.code_mirror.setOption('lineNumbers', value);
+
+    Cell.prototype.toggle_line_numbers = function () {
+        if (this.code_mirror.getOption('lineNumbers') == false) {
+            this.code_mirror.setOption('lineNumbers', true);
+        } else {
+            this.code_mirror.setOption('lineNumbers', false);
+        }
         this.code_mirror.refresh();
     };
 
-    /**
-     * Toggle  CodeMirror LineNumber
-     * @method toggle_line_numbers
-     **/
-    Cell.prototype.toggle_line_numbers = function () {
-        var val = this.code_mirror.getOption('lineNumbers');
-        this.show_line_numbers(!val);
-    };
-
-    /**
-     * Force codemirror highlight mode
-     * @method force_highlight
-     * @param {object} - CodeMirror mode
-     **/
     Cell.prototype.force_highlight = function(mode) {
         this.user_highlight = mode;
         this.auto_highlight();
     };
 
-    /**
-     * Try to autodetect cell highlight mode, or use selected mode
-     * @methods _auto_highlight
-     * @private
-     * @param {String|object|undefined} - CodeMirror mode | 'auto'
-     **/
     Cell.prototype._auto_highlight = function (modes) {
         //Here we handle manually selected modes
         if( this.user_highlight != undefined &&  this.user_highlight != 'auto' )

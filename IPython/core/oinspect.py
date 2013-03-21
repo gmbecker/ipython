@@ -296,7 +296,7 @@ def find_file(obj):
                 pass
     except:
         pass
-    return cast_unicode(fname)
+    return fname
 
 
 def find_source_lines(obj):
@@ -326,8 +326,6 @@ def find_source_lines(obj):
             # For instances, try the class object like getsource() does
             if hasattr(obj, '__class__'):
                 lineno = inspect.getsourcelines(obj.__class__)[1]
-            else:
-                lineno = None
     except:
         return None
 
@@ -346,7 +344,7 @@ class Inspector:
         self.set_active_scheme(scheme)
 
     def _getdef(self,obj,oname=''):
-        """Return the call signature for any callable object.
+        """Return the definition header for any callable object.
 
         If any exception is generated, None is returned instead and the
         exception is suppressed."""
@@ -375,7 +373,7 @@ class Inspector:
             print()
 
     def pdef(self, obj, oname=''):
-        """Print the call signature for any callable object.
+        """Print the definition header for any callable object.
 
         If the object is a class, print the constructor information."""
 

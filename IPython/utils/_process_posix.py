@@ -22,7 +22,9 @@ import sys
 from IPython.external import pexpect
 
 # Our own
+from .autoattr import auto_attr
 from ._process_common import getoutput, arg_split
+from IPython.utils import text
 from IPython.utils import py3compat
 from IPython.utils.encoding import DEFAULT_ENCODING
 
@@ -54,16 +56,14 @@ class ProcessHandler(object):
     logfile = None
 
     # Shell to call for subprocesses to execute
-    _sh = None
+    sh = None
 
-    @property
+    @auto_attr
     def sh(self):
-        if self._sh is None:        
-            self._sh = pexpect.which('sh')
-            if self._sh is None:
-                raise OSError('"sh" shell not found')
-        
-        return self._sh
+        sh = pexpect.which('sh')
+        if sh is None:
+            raise OSError('"sh" shell not found')
+        return sh
 
     def __init__(self, logfile=None, read_timeout=None, terminate_timeout=None):
         """Arguments are used for pexpect calls."""

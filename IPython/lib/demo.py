@@ -1,3 +1,6 @@
+from __future__ import unicode_literals
+
+
 """Module for interactive demos using IPython.
 
 This module implements a few classes for running Python scripts interactively
@@ -7,7 +10,7 @@ control to IPython.
 
 
 Provided classes
-----------------
+================
 
 The classes are (see their docstrings for further details):
 
@@ -30,13 +33,9 @@ The classes are (see their docstrings for further details):
  - ClearDemo, ClearIPDemo: mixin-enabled versions of the Demo and IPythonDemo
    classes.
 
-Inheritance diagram:
-
-.. inheritance-diagram:: IPython.lib.demo
-   :parts: 3
 
 Subclassing
------------
+===========
 
 The classes here all include a few methods meant to make customization by
 subclassing more convenient.  Their docstrings below have some more details:
@@ -51,7 +50,7 @@ subclassing more convenient.  Their docstrings below have some more details:
 
 
 Operation
----------
+=========
 
 The file is run in its own empty namespace (though you can pass it a string of
 arguments as if in a command line environment, and it will see those as
@@ -104,11 +103,11 @@ place a set of stop tags; the other tags are only there to let you fine-tune
 the execution.
 
 This is probably best explained with the simple example file below.  You can
-copy this into a file named ex_demo.py, and try running it via::
+copy this into a file named ex_demo.py, and try running it via:
 
-    from IPython.demo import Demo
-    d = Demo('ex_demo.py')
-    d()
+from IPython.demo import Demo
+d = Demo('ex_demo.py')
+d()  <--- Call the d object (omit the parens if you have autocall set to 2).
 
 Each time you call the demo object, it runs the next block.  The demo object
 has a few useful methods for navigation, like again(), edit(), jump(), seek()
@@ -124,50 +123,46 @@ an IPython session, and type::
 and then follow the directions.
 
 Example
--------
+=======
 
 The following is a very simple example of a valid demo file.
 
-::
+#################### EXAMPLE DEMO <ex_demo.py> ###############################
+'''A simple interactive demo to illustrate the use of IPython's Demo class.'''
 
-    #################### EXAMPLE DEMO <ex_demo.py> ###############################
-    '''A simple interactive demo to illustrate the use of IPython's Demo class.'''
+print 'Hello, welcome to an interactive IPython demo.'
 
-    print 'Hello, welcome to an interactive IPython demo.'
+# The mark below defines a block boundary, which is a point where IPython will
+# stop execution and return to the interactive prompt. The dashes are actually
+# optional and used only as a visual aid to clearly separate blocks while
+# editing the demo code.
+# <demo> stop
 
-    # The mark below defines a block boundary, which is a point where IPython will
-    # stop execution and return to the interactive prompt. The dashes are actually
-    # optional and used only as a visual aid to clearly separate blocks while
-    # editing the demo code.
-    # <demo> stop
+x = 1
+y = 2
 
-    x = 1
-    y = 2
+# <demo> stop
 
-    # <demo> stop
+# the mark below makes this block as silent
+# <demo> silent
 
-    # the mark below makes this block as silent
-    # <demo> silent
+print 'This is a silent block, which gets executed but not printed.'
 
-    print 'This is a silent block, which gets executed but not printed.'
+# <demo> stop
+# <demo> auto
+print 'This is an automatic block.'
+print 'It is executed without asking for confirmation, but printed.'
+z = x+y
 
-    # <demo> stop
-    # <demo> auto
-    print 'This is an automatic block.'
-    print 'It is executed without asking for confirmation, but printed.'
-    z = x+y
+print 'z=',x
 
-    print 'z=',x
+# <demo> stop
+# This is just another normal block.
+print 'z is now:', z
 
-    # <demo> stop
-    # This is just another normal block.
-    print 'z is now:', z
-
-    print 'bye!'
-    ################### END EXAMPLE DEMO <ex_demo.py> ############################
+print 'bye!'
+################### END EXAMPLE DEMO <ex_demo.py> ############################
 """
-
-from __future__ import unicode_literals
 
 #*****************************************************************************
 #     Copyright (C) 2005-2006 Fernando Perez. <Fernando.Perez@colorado.edu>
@@ -183,7 +178,9 @@ import re
 import shlex
 import sys
 
+from IPython.utils.PyColorize import Parser
 from IPython.utils import io
+from IPython.utils.io import file_read, file_readlines
 from IPython.utils.text import marquee
 from IPython.utils import openpy
 __all__ = ['Demo','IPythonDemo','LineDemo','IPythonLineDemo','DemoError']
@@ -379,8 +376,7 @@ class Demo(object):
 
         filename = self.shell.mktempfile(self.src_blocks[index])
         self.shell.hooks.editor(filename,1)
-        with open(filename, 'r') as f:
-            new_block = f.read()
+        new_block = file_read(filename)
         # update the source and colored block
         self.src_blocks[index] = new_block
         self.src_blocks_colored[index] = self.ip_colorize(new_block)

@@ -9,8 +9,13 @@ In addition to normal readline stuff, this module provides have_readline
 boolean and _outputfile variable used in IPython.utils.
 """
 
+import os
+import re
 import sys
+import time
 import warnings
+
+from subprocess import Popen, PIPE
 
 if sys.platform == 'darwin':
     # dirty trick, to skip the system readline, because pip-installed readline
@@ -68,7 +73,7 @@ if have_readline and hasattr(_rl, 'rlmain'):
                 line = lineobj.TextLine(line)
             return _rl.add_history(line)
 
-if (sys.platform == 'win32' or sys.platform == 'cli') and have_readline:
+if sys.platform == 'win32' and have_readline:
     try:
         _outputfile=_rl.GetOutputFile()
     except AttributeError:

@@ -5,4 +5,4 @@ storemagic
 ==========
 
 .. automodule:: IPython.extensions.storemagic
-   :members: store
+   :members: magic_store

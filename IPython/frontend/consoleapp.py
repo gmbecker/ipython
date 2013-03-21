@@ -34,21 +34,20 @@ import uuid
 from IPython.config.application import boolean_flag
 from IPython.config.configurable import Configurable
 from IPython.core.profiledir import ProfileDir
-from IPython.kernel.blockingkernelmanager import BlockingKernelManager
-from IPython.kernel.kernelmanager import KernelManager
-from IPython.kernel import tunnel_to_kernel, find_connection_file, swallow_argv
+from IPython.lib.kernel import tunnel_to_kernel, find_connection_file, swallow_argv
+from IPython.zmq.blockingkernelmanager import BlockingKernelManager
 from IPython.utils.path import filefind
 from IPython.utils.py3compat import str_to_bytes
 from IPython.utils.traitlets import (
     Dict, List, Unicode, CUnicode, Int, CBool, Any, CaselessStrEnum
 )
-from IPython.kernel.zmq.kernelapp import (
-    kernel_flags,
-    kernel_aliases,
+from IPython.zmq.ipkernel import (
+    flags as ipkernel_flags,
+    aliases as ipkernel_aliases,
     IPKernelApp
 )
-from IPython.kernel.zmq.session import Session, default_secure
-from IPython.kernel.zmq.zmqshell import ZMQInteractiveShell
+from IPython.zmq.session import Session, default_secure
+from IPython.zmq.zmqshell import ZMQInteractiveShell
 
 #-----------------------------------------------------------------------------
 # Network Constants
@@ -65,7 +64,7 @@ from IPython.utils.localinterfaces import LOCALHOST, LOCAL_IPS
 # Aliases and Flags
 #-----------------------------------------------------------------------------
 
-flags = dict(kernel_flags)
+flags = dict(ipkernel_flags)
 
 # the flags that are specific to the frontend
 # these must be scrubbed before being passed to the kernel,
@@ -85,16 +84,15 @@ app_flags.update(boolean_flag(
 ))
 flags.update(app_flags)
 
-aliases = dict(kernel_aliases)
+aliases = dict(ipkernel_aliases)
 
 # also scrub aliases from the frontend
 app_aliases = dict(
-    ip = 'KernelManager.ip',
-    transport = 'KernelManager.transport',
     hb = 'IPythonConsoleApp.hb_port',
     shell = 'IPythonConsoleApp.shell_port',
     iopub = 'IPythonConsoleApp.iopub_port',
     stdin = 'IPythonConsoleApp.stdin_port',
+    ip = 'IPythonConsoleApp.ip',
     existing = 'IPythonConsoleApp.existing',
     f = 'IPythonConsoleApp.connection_file',
 
@@ -111,10 +109,10 @@ aliases.update(app_aliases)
 # IPythonConsole
 #-----------------------------------------------------------------------------
 
-classes = [IPKernelApp, ZMQInteractiveShell, KernelManager, ProfileDir, Session]
+classes = [IPKernelApp, ZMQInteractiveShell, ProfileDir, Session]
 
 try:
-    from IPython.kernel.zmq.pylab.backend_inline import InlineBackend
+    from IPython.zmq.pylab.backend_inline import InlineBackend
 except ImportError:
     pass
 else:
@@ -155,6 +153,27 @@ class IPythonConsoleApp(Configurable):
     auto_create = CBool(True)
     # connection info:
     
+    transport = CaselessStrEnum(['tcp', 'ipc'], default_value='tcp', config=True)
+    
+    ip = Unicode(config=True,
+        help="""Set the kernel\'s IP address [default localhost].
+        If the IP address is something other than localhost, then
+        Consoles on other machines will be able to connect
+        to the Kernel, so be careful!"""
+    )
+    def _ip_default(self):
+        if self.transport == 'tcp':
+            return LOCALHOST
+        else:
+            # this can fire early if ip is given,
+            # in which case our return value is meaningless
+            if not hasattr(self, 'profile_dir'):
+                return ''
+            ipcdir = os.path.join(self.profile_dir.security_dir, 'kernel-%s' % os.getpid())
+            os.makedirs(ipcdir)
+            atexit.register(lambda : shutil.rmtree(ipcdir))
+            return os.path.join(ipcdir, 'ipc')
+    
     sshserver = Unicode('', config=True,
         help="""The SSH server to use to connect to the kernel.""")
     sshkey = Unicode('', config=True,
@@ -194,7 +213,7 @@ class IPythonConsoleApp(Configurable):
             argv = sys.argv[1:]
         self.kernel_argv = swallow_argv(argv, self.frontend_aliases, self.frontend_flags)
         # kernel should inherit default config file from frontend
-        self.kernel_argv.append("--IPKernelApp.parent_appname='%s'" % self.name)
+        self.kernel_argv.append("--KernelApp.parent_appname='%s'"%self.name)
     
     def init_connection_file(self):
         """find the connection file, and load the info if found.
@@ -244,7 +263,7 @@ class IPythonConsoleApp(Configurable):
     
     def load_connection_file(self):
         """load ip/port/hmac config from JSON connection file"""
-        # this is identical to IPKernelApp.load_connection_file
+        # this is identical to KernelApp.load_connection_file
         # perhaps it can be centralized somewhere?
         try:
             fname = filefind(self.connection_file, ['.', self.profile_dir.security_dir])
@@ -255,9 +274,9 @@ class IPythonConsoleApp(Configurable):
         with open(fname) as f:
             cfg = json.load(f)
         
-        self.config.KernelManager.transport = cfg.get('transport', 'tcp')
-        self.config.KernelManager.ip = cfg.get('ip', LOCALHOST)
-        
+        self.transport = cfg.get('transport', 'tcp')
+        if 'ip' in cfg:
+            self.ip = cfg['ip']
         for channel in ('hb', 'shell', 'iopub', 'stdin'):
             name = channel + '_port'
             if getattr(self, name) == 0 and name in cfg:
@@ -265,38 +284,34 @@ class IPythonConsoleApp(Configurable):
                 setattr(self, name, cfg[name])
         if 'key' in cfg:
             self.config.Session.key = str_to_bytes(cfg['key'])
+        
     
     def init_ssh(self):
         """set up ssh tunnels, if needed."""
-        if not self.existing or (not self.sshserver and not self.sshkey):
+        if not self.sshserver and not self.sshkey:
             return
         
-        self.load_connection_file()
-        
-        transport = self.config.KernelManager.transport
-        ip = self.config.KernelManager.ip
-        
-        if transport != 'tcp':
-            self.log.error("Can only use ssh tunnels with TCP sockets, not %s", transport)
-            sys.exit(-1)
+        if self.transport != 'tcp':
+            self.log.error("Can only use ssh tunnels with TCP sockets, not %s", self.transport)
+            return
         
         if self.sshkey and not self.sshserver:
             # specifying just the key implies that we are connecting directly
-            self.sshserver = ip
-            ip = LOCALHOST
+            self.sshserver = self.ip
+            self.ip = LOCALHOST
         
         # build connection dict for tunnels:
-        info = dict(ip=ip,
+        info = dict(ip=self.ip,
                     shell_port=self.shell_port,
                     iopub_port=self.iopub_port,
                     stdin_port=self.stdin_port,
                     hb_port=self.hb_port
         )
         
-        self.log.info("Forwarding connections to %s via %s"%(ip, self.sshserver))
+        self.log.info("Forwarding connections to %s via %s"%(self.ip, self.sshserver))
         
         # tunnels return a new set of ports, which will be on localhost:
-        self.config.KernelManager.ip = LOCALHOST
+        self.ip = LOCALHOST
         try:
             newports = tunnel_to_kernel(info, self.sshserver, self.sshkey)
         except:
@@ -332,6 +347,8 @@ class IPythonConsoleApp(Configurable):
 
         # Create a KernelManager and start a kernel.
         self.kernel_manager = self.kernel_manager_class(
+                                transport=self.transport,
+                                ip=self.ip,
                                 shell_port=self.shell_port,
                                 iopub_port=self.iopub_port,
                                 stdin_port=self.stdin_port,
@@ -342,7 +359,6 @@ class IPythonConsoleApp(Configurable):
         # start the kernel
         if not self.existing:
             self.kernel_manager.start_kernel(extra_arguments=self.kernel_argv)
-            atexit.register(self.kernel_manager.cleanup_ipc_files)
         elif self.sshserver:
             # ssh, write new connection file
             self.kernel_manager.write_connection_file()

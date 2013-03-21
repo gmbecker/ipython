@@ -76,28 +76,9 @@ class HistoryConsoleWidget(ConsoleWidget):
             # Set a search prefix based on the cursor position.
             col = self._get_input_buffer_cursor_column()
             input_buffer = self.input_buffer
-            # use the *shortest* of the cursor column and the history prefix
-            # to determine if the prefix has changed
-            n = min(col, len(self._history_prefix))
-            
-            # prefix changed, restart search from the beginning
-            if (self._history_prefix[:n] != input_buffer[:n]):
-                self._history_index = len(self._history)
-            
-            # the only time we shouldn't set the history prefix
-            # to the line up to the cursor is if we are already
-            # in a simple scroll (no prefix),
-            # and the cursor is at the end of the first line
-            
-            # check if we are at the end of the first line
-            c = self._get_cursor()
-            current_pos = c.position()
-            c.movePosition(QtGui.QTextCursor.EndOfLine)
-            at_eol = (c.position() == current_pos)
-            
             if self._history_index == len(self._history) or \
-                not (self._history_prefix == '' and at_eol) or \
-                not (self._get_edited_history(self._history_index)[:col] == input_buffer[:col]):
+                    (self._history_prefix and col != len(self._history_prefix)):
+                self._history_index = len(self._history)
                 self._history_prefix = input_buffer[:col]
 
             # Perform the search.
@@ -198,7 +179,7 @@ class HistoryConsoleWidget(ConsoleWidget):
         """
         index = self._history_index
         replace = False
-        while index < len(self._history):
+        while self._history_index < len(self._history):
             index += 1
             history = self._get_edited_history(index)
             if (as_prefix and history.startswith(substring)) \

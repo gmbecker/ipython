@@ -1,10 +1,9 @@
-{% extends "page.html" %}
-
+{% extends page.html %}
 {% block stylesheet %}
 
 {% if mathjax_url %}
-<script type="text/javascript" src="{{mathjax_url}}?config=TeX-AMS_HTML-full&delayStartupUntil=configured" charset="utf-8"></script>
-{% endif %}
+<script type="text/javascript" src="{{mathjax_url}}?config=TeX-AMS_HTML" charset="utf-8"></script>
+{% end %}
 <script type="text/javascript">
 // MathJax disabled, set as null to distingish from *missing* MathJax,
 // where it will be undefined, and should prompt a dialog later.
@@ -12,11 +11,15 @@ window.mathjax_url = "{{mathjax_url}}";
 </script>
 
 <link rel="stylesheet" href="{{ static_url("codemirror/lib/codemirror.css") }}">
-<link rel="stylesheet" href="{{ static_url("css/codemirror-ipython.css") }}">
+<link rel="stylesheet" href="{{ static_url("codemirror/theme/ipython.css") }}">
 
 <link rel="stylesheet" href="{{ static_url("prettify/prettify.css") }}"/>
 
-<link rel="stylesheet" href="{{ static_url("css/celltoolbar.css") }}" type="text/css" />
+<link rel="stylesheet" href="{{ static_url("css/notebook.css") }}" type="text/css" />
+<link rel="stylesheet" href="{{ static_url("css/tooltip.css") }}" type="text/css" />
+<link rel="stylesheet" href="{{ static_url("css/renderedhtml.css") }}" type="text/css" />
+
+<link rel="stylesheet" href="{{ static_url("css/printnotebook.css") }}" type="text/css" media="print"/>
 
 {% for css in extra_css %}
 <link rel="stylesheet" href="{{ static_url(css) }}" type="text/css" />
@@ -25,8 +28,6 @@ window.mathjax_url = "{{mathjax_url}}";
 {% end %}
 
 
-{% endblock %}
-
 {% block params %}
 
 data-project={{project}}
@@ -34,9 +35,8 @@ data-base-project-url={{base_project_url}}
 data-base-kernel-url={{base_kernel_url}}
 data-read-only={{read_only and not logged_in}}
 data-notebook-id={{notebook_id}}
-class="notebook_app"
 
-{% endblock %}
+{% end %}
 
 
 {% block header %}
@@ -46,7 +46,7 @@ class="notebook_app"
     <span id="save_status"></span>
 </span>
 
-{% endblock %}
+{% end %}
 
 
 {% block site %}
@@ -69,8 +69,8 @@ class="notebook_app"
                         <li id="download_py"><a href="#">Python (.py)</a></li>
                     </ul>
                 </li>
-                <!--<hr/>
-                <li id="print_notebook"><a href="/{{notebook_id}}/print" target="_blank">Print View</a></li>-->
+                <hr/>
+                <li id="print_notebook"><a href="/{{notebook_id}}/print" target="_blank">Print View</a></li>
                 <hr/>
                 <li id="kill_and_exit"><a href="#" >Close and halt</a></li>
             </ul>
@@ -79,11 +79,10 @@ class="notebook_app"
             <ul>
                 <li id="cut_cell"><a href="#">Cut Cell</a></li>
                 <li id="copy_cell"><a href="#">Copy Cell</a></li>
+                <li id="paste_cell" class="ui-state-disabled"><a href="#">Paste Cell</a></li>
                 <li id="paste_cell_above" class="ui-state-disabled"><a href="#">Paste Cell Above</a></li>
                 <li id="paste_cell_below" class="ui-state-disabled"><a href="#">Paste Cell Below</a></li>
-                <li id="paste_cell_replace" class="ui-state-disabled"><a href="#">Paste Cell &amp; Replace</a></li>
-                <li id="delete_cell"><a href="#">Delete Cell</a></li>
-                <li id="undelete_cell" class="ui-state-disabled"><a href="#">Undo Delete Cell</a></li>
+                <li id="delete_cell"><a href="#">Delete</a></li>
                 <hr/>
                 <li id="split_cell"><a href="#">Split Cell</a></li>
                 <li id="merge_cell_above"><a href="#">Merge Cell Above</a></li>
@@ -113,8 +112,6 @@ class="notebook_app"
                 <li id="run_cell"><a href="#">Run</a></li>
                 <li id="run_cell_in_place"><a href="#">Run in Place</a></li>
                 <li id="run_all_cells"><a href="#">Run All</a></li>
-                <li id="run_all_cells_above"><a href="#">Run All Above</a></li>
-                <li id="run_all_cells_below"><a href="#">Run All Below</a></li>
                 <hr/>
                 <li id="to_code"><a href="#">Code</a></li>
                 <li id="to_markdown"><a href="#">Markdown </a></li>
@@ -166,7 +163,7 @@ class="notebook_app"
 
 <div id="maintoolbar"></div>
 
-<div id="ipython-main-app">
+<div id="main_app">
 
     <div id="notebook_panel">
         <div id="notebook"></div>
@@ -179,15 +176,13 @@ class="notebook_app"
     </div>
 
 </div>
-<div id='tooltip' class='ipython_tooltip' style='display:none'></div>
+<div id='tooltip' class='ipython_tooltip ui-corner-all' style='display:none'></div>
 
 
-{% endblock %}
+{% end %}
 
 
 {% block script %}
-
-{{super()}}
 
 <script src="{{ static_url("codemirror/lib/codemirror.js") }}" charset="utf-8"></script>
 <script src="{{ static_url("codemirror/lib/util/loadmode.js") }}" charset="utf-8"></script>
@@ -211,7 +206,6 @@ class="notebook_app"
 <script src="{{ static_url("js/mathjaxutils.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("js/outputarea.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("js/cell.js") }}" type="text/javascript" charset="utf-8"></script>
-<script src="{{ static_url("js/celltoolbar.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("js/codecell.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("js/completer.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("js/textcell.js") }}" type="text/javascript" charset="utf-8"></script>
@@ -237,4 +231,3 @@ class="notebook_app"
 {% end %}
 
 {% end %}
-

@@ -59,11 +59,6 @@ ColorSchemeTable class. Currently the following exist:
 You can implement other color schemes easily, the syntax is fairly
 self-explanatory. Please send back new schemes you develop to the author for
 possible inclusion in future releases.
-
-Inheritance diagram:
-
-.. inheritance-diagram:: IPython.core.ultratb
-   :parts: 3
 """
 
 #*****************************************************************************
@@ -104,11 +99,12 @@ from IPython.core.display_trap import DisplayTrap
 from IPython.core.excolors import exception_colors
 from IPython.utils import PyColorize
 from IPython.utils import io
-from IPython.utils import openpy
 from IPython.utils import path as util_path
 from IPython.utils import py3compat
+from IPython.utils import pyfile
 from IPython.utils import ulinecache
 from IPython.utils.data import uniq_stable
+from IPython.utils.openpy import read_py_file
 from IPython.utils.warn import info, error
 
 # Globals
@@ -419,9 +415,9 @@ class TBTools(object):
 class ListTB(TBTools):
     """Print traceback information from a traceback list, with optional color.
 
-    Calling requires 3 arguments: (etype, evalue, elist)
-    as would be obtained by::
-    
+    Calling: requires 3 arguments:
+      (etype, evalue, elist)
+    as would be obtained by:
       etype, evalue, tb = sys.exc_info()
       if tb:
         elist = traceback.extract_tb(tb)
@@ -837,7 +833,7 @@ class VerboseTB(TBTools):
                 continue
             elif file.endswith(('.pyc','.pyo')):
                 # Look up the corresponding source file.
-                file = openpy.source_from_cache(file)
+                file = pyfile.source_from_cache(file)
 
             def linereader(file=file, lnum=[lnum], getline=ulinecache.getline):
                 line = getline(file, lnum[0])
@@ -1129,13 +1125,13 @@ class AutoFormattedTB(FormattedTB):
 
     It will find out about exceptions by itself.
 
-    A brief example::
+    A brief example:
 
-        AutoTB = AutoFormattedTB(mode = 'Verbose',color_scheme='Linux')
-        try:
-          ...
-        except:
-          AutoTB()  # or AutoTB(out=logfile) where logfile is an open file object
+    AutoTB = AutoFormattedTB(mode = 'Verbose',color_scheme='Linux')
+    try:
+      ...
+    except:
+      AutoTB()  # or AutoTB(out=logfile) where logfile is an open file object
     """
 
     def __call__(self,etype=None,evalue=None,etb=None,

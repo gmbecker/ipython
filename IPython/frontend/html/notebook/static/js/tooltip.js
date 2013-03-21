@@ -111,6 +111,7 @@ var IPython = (function (IPython) {
             }, function (cell) {
                 that.cancel_stick();
                 that.showInPager(cell);
+                that._cmfocus();
             }];
             // call after all the tabs function above have bee call to clean their effects
             // if necessary
@@ -125,7 +126,7 @@ var IPython = (function (IPython) {
         // reexecute last call in pager by appending ? to show back in pager
         var that = this;
         var empty = function () {};
-        cell.kernel.execute(
+        IPython.notebook.kernel.execute(
         that.name + '?', {
             'execute_reply': empty,
             'output': empty,
@@ -135,6 +136,7 @@ var IPython = (function (IPython) {
             'silent': false
         });
         this.remove_and_cancel_tooltip();
+        this._cmfocus();
     }
 
     // grow the tooltip verticaly
@@ -142,6 +144,7 @@ var IPython = (function (IPython) {
         this.text.removeClass('smalltooltip');
         this.text.addClass('bigtooltip');
         $('#expanbutton').hide('slow');
+        this._cmfocus();
     }
 
     // deal with all the logic of hiding the tooltip
@@ -167,6 +170,7 @@ var IPython = (function (IPython) {
         }
         this.cancel_pending();
         this.reset_tabs_function();
+        this._cmfocus();
     }
 
     // cancel autocall done after '(' for example.
@@ -208,7 +212,7 @@ var IPython = (function (IPython) {
         var callbacks = {
             'object_info_reply': $.proxy(this._show, this)
         }
-        var msg_id = cell.kernel.object_info_request(re.exec(func), callbacks);
+        var msg_id = IPython.notebook.kernel.object_info_request(re.exec(func), callbacks);
     }
 
     // make an imediate completion request
@@ -223,10 +227,6 @@ var IPython = (function (IPython) {
             line: cursor.line,
             ch: 0
         }, cursor).trim();
-
-        if(editor.somethingSelected()){
-            text = editor.getSelection();
-        }
 
         // need a permanent handel to code_mirror for future auto recall
         this.code_mirror = editor;
@@ -288,15 +288,7 @@ var IPython = (function (IPython) {
         var w = $(this.code_mirror.getScrollerElement()).width();
         // ofset of the editor
         var o = $(this.code_mirror.getScrollerElement()).offset();
-
-        // whatever anchor/head order but arrow at mid x selection
-        var anchor = this.code_mirror.cursorCoords(false);
-        var head  = this.code_mirror.cursorCoords(true);
-        var pos = {};
-        pos.y = head.y
-        pos.yBot = head.yBot
-        pos.x = (head.x+anchor.x)/2;
-
+        var pos = this.code_mirror.cursorCoords();
         var xinit = pos.x;
         var xinter = o.left + (xinit - o.left) / w * (w - 450);
         var posarrowleft = xinit - xinter;
@@ -353,6 +345,16 @@ var IPython = (function (IPython) {
         this.text.scrollTop(0);
     }
 
+    // convenient funciton to have the correct code_mirror back into focus
+    Tooltip.prototype._cmfocus = function () {
+        var cm = this.code_mirror;
+        if (cm == IPython.notebook.get_selected_cell())
+        {
+            setTimeout(function () {
+                cm.focus();
+            }, 50);
+        }
+    }
 
     IPython.Tooltip = Tooltip;
 

@@ -14,20 +14,14 @@ var IPython = (function (IPython) {
     var utils = IPython.utils;
     var key   = IPython.utils.keycodes;
 
-    var Notebook = function (selector, options) {
-        var options = options || {};
-        this._baseProjectUrl = options.baseProjectUrl;
-        this.read_only = options.read_only || IPython.read_only;
-
+    var Notebook = function (selector) {
+        this.read_only = IPython.read_only;
         this.element = $(selector);
         this.element.scroll();
         this.element.data("notebook", this);
         this.next_prompt_number = 1;
         this.kernel = null;
         this.clipboard = null;
-        this.undelete_backup = null;
-        this.undelete_index = null;
-        this.undelete_below = false;
         this.paste_enabled = false;
         this.dirty = false;
         this.metadata = {};
@@ -47,10 +41,6 @@ var IPython = (function (IPython) {
 
     Notebook.prototype.style = function () {
         $('div#notebook').addClass('border-box-sizing');
-    };
-
-    Notebook.prototype.baseProjectUrl = function(){
-        return this._baseProjectUrl || $('body').data('baseProjectUrl');
     };
 
 
@@ -94,15 +84,15 @@ var IPython = (function (IPython) {
         $(document).keydown(function (event) {
             // console.log(event);
             if (that.read_only) return true;
-
-            // Save (CTRL+S) or (AppleKey+S)
+            
+            // Save (CTRL+S) or (AppleKey+S) 
             //metaKey = applekey on mac
-            if ((event.ctrlKey || event.metaKey) && event.keyCode==83) {
+            if ((event.ctrlKey || event.metaKey) && event.keyCode==83) { 
                 that.save_notebook();
                 event.preventDefault();
                 return false;
             } else if (event.which === key.ESC) {
-                // Intercept escape at highest level to avoid closing
+                // Intercept escape at highest level to avoid closing 
                 // websocket connection with firefox
                 event.preventDefault();
             } else if (event.which === key.SHIFT) {
@@ -149,8 +139,8 @@ var IPython = (function (IPython) {
                 that.control_key_active = false;
                 return false;
             } else if (event.which === 86 && that.control_key_active) {
-                // Paste below selected cell = v
-                that.paste_cell_below();
+                // Paste selected cell = v
+                that.paste_cell();
                 that.control_key_active = false;
                 return false;
             } else if (event.which === 68 && that.control_key_active) {
@@ -267,11 +257,6 @@ var IPython = (function (IPython) {
                 IPython.quick_help.show_keyboard_shortcuts();
                 that.control_key_active = false;
                 return false;
-            } else if (event.which === 90 && that.control_key_active) {
-                // Undo last cell delete = z
-                that.undelete();
-                that.control_key_active = false;
-                return false;
             } else if (that.control_key_active) {
                 that.control_key_active = false;
                 return true;
@@ -280,27 +265,27 @@ var IPython = (function (IPython) {
         });
 
         var collapse_time = function(time){
-            var app_height = $('#ipython-main-app').height(); // content height
+            var app_height = $('div#main_app').height(); // content height
             var splitter_height = $('div#pager_splitter').outerHeight(true);
             var new_height = app_height - splitter_height;
             that.element.animate({height : new_height + 'px'}, time);
         }
 
         this.element.bind('collapse_pager', function (event,extrap) {
-            var time = (extrap != undefined) ? ((extrap.duration != undefined ) ? extrap.duration : 'fast') : 'fast';
+            time = (extrap != undefined) ? ((extrap.duration != undefined ) ? extrap.duration : 'fast') : 'fast';
             collapse_time(time);
         });
 
         var expand_time = function(time) {
-            var app_height = $('#ipython-main-app').height(); // content height
+            var app_height = $('div#main_app').height(); // content height
             var splitter_height = $('div#pager_splitter').outerHeight(true);
             var pager_height = $('div#pager').outerHeight(true);
-            var new_height = app_height - pager_height - splitter_height;
+            var new_height = app_height - pager_height - splitter_height; 
             that.element.animate({height : new_height + 'px'}, time);
         }
 
         this.element.bind('expand_pager', function (event, extrap) {
-            var time = (extrap != undefined) ? ((extrap.duration != undefined ) ? extrap.duration : 'fast') : 'fast';
+            time = (extrap != undefined) ? ((extrap.duration != undefined ) ? extrap.duration : 'fast') : 'fast';
             expand_time(time);
         });
 
@@ -324,7 +309,7 @@ var IPython = (function (IPython) {
         var time = time || 0;
         cell_number = Math.min(cells.length-1,cell_number);
         cell_number = Math.max(0             ,cell_number);
-        var scroll_value = cells[cell_number].element.position().top-cells[0].element.position().top ;
+        scroll_value = cells[cell_number].element.position().top-cells[0].element.position().top ; 
         this.element.animate({scrollTop:scroll_value}, time);
         return scroll_value;
     };
@@ -384,7 +369,7 @@ var IPython = (function (IPython) {
     Notebook.prototype.get_next_cell = function (cell) {
         var result = null;
         var index = this.find_cell_index(cell);
-        if (this.is_valid_cell_index(index+1)) {
+        if (index !== null && index < this.ncells()) {
             result = this.get_cell(index+1);
         }
         return result;
@@ -453,12 +438,12 @@ var IPython = (function (IPython) {
     // Cell selection.
 
     Notebook.prototype.select = function (index) {
-        if (this.is_valid_cell_index(index)) {
-            var sindex = this.get_selected_index()
+        if (index !== undefined && index >= 0 && index < this.ncells()) {
+            sindex = this.get_selected_index()
             if (sindex !== null && index !== sindex) {
                 this.get_cell(sindex).unselect();
             };
-            var cell = this.get_cell(index);
+            var cell = this.get_cell(index)
             cell.select();
             if (cell.cell_type === 'heading') {
                 $([IPython.events]).trigger('selected_cell_type_changed.Notebook',
@@ -476,28 +461,27 @@ var IPython = (function (IPython) {
 
     Notebook.prototype.select_next = function () {
         var index = this.get_selected_index();
-        this.select(index+1);
+        if (index !== null && index >= 0 && (index+1) < this.ncells()) {
+            this.select(index+1);
+        };
         return this;
     };
 
 
     Notebook.prototype.select_prev = function () {
         var index = this.get_selected_index();
-        this.select(index-1);
+        if (index !== null && index >= 0 && (index-1) < this.ncells()) {
+            this.select(index-1);
+        };
         return this;
     };
 
 
     // Cell movement
 
-    /**
-     * Move given (or selected) cell up and select it
-     * @method move_cell_up
-     * @param [index] {integer} cell index
-     **/
     Notebook.prototype.move_cell_up = function (index) {
-        var i = this.index_or_selected(index);
-        if (this.is_valid_cell_index(i) && i > 0) {
+        var i = this.index_or_selected();
+        if (i !== null && i < this.ncells() && i > 0) {
             var pivot = this.get_cell_element(i-1);
             var tomove = this.get_cell_element(i);
             if (pivot !== null && tomove !== null) {
@@ -505,20 +489,15 @@ var IPython = (function (IPython) {
                 pivot.before(tomove);
                 this.select(i-1);
             };
-            this.dirty = true;
         };
+        this.dirty = true;
         return this;
     };
 
 
-    /**
-     * Move given (or selected) cell down and select it
-     * @method move_cell_down
-     * @param [index] {integer} cell index
-     **/
     Notebook.prototype.move_cell_down = function (index) {
-        var i = this.index_or_selected(index);
-        if ( this.is_valid_cell_index(i) && this.is_valid_cell_index(i+1)) {
+        var i = this.index_or_selected();
+        if (i !== null && i < (this.ncells()-1) && i >= 0) {
             var pivot = this.get_cell_element(i+1);
             var tomove = this.get_cell_element(i);
             if (pivot !== null && tomove !== null) {
@@ -532,24 +511,38 @@ var IPython = (function (IPython) {
     };
 
 
+    Notebook.prototype.sort_cells = function () {
+        // This is not working right now. Calling this will actually crash
+        // the browser. I think there is an infinite loop in here...
+        var ncells = this.ncells();
+        var sindex = this.get_selected_index();
+        var swapped;
+        do {
+            swapped = false;
+            for (var i=1; i<ncells; i++) {
+                current = this.get_cell(i);
+                previous = this.get_cell(i-1);
+                if (previous.input_prompt_number > current.input_prompt_number) {
+                    this.move_cell_up(i);
+                    swapped = true;
+                };
+            };
+        } while (swapped);
+        this.select(sindex);
+        return this;
+    };
+
     // Insertion, deletion.
 
     Notebook.prototype.delete_cell = function (index) {
         var i = this.index_or_selected(index);
-        var cell = this.get_selected_cell();
-        this.undelete_backup = cell.toJSON();
-        $('#undelete_cell').removeClass('ui-state-disabled');
         if (this.is_valid_cell_index(i)) {
             var ce = this.get_cell_element(i);
             ce.remove();
             if (i === (this.ncells())) {
                 this.select(i-1);
-                this.undelete_index = i - 1;
-                this.undelete_below = true;
             } else {
                 this.select(i);
-                this.undelete_index = i;
-                this.undelete_below = false;
             };
             this.dirty = true;
         };
@@ -557,28 +550,17 @@ var IPython = (function (IPython) {
     };
 
 
+    Notebook.prototype.insert_cell_at_bottom = function (type){
+        var len = this.ncells();
+        return this.insert_cell_below(type,len-1);
+    }
 
-
-    /**
-     * Insert a cell so that after insertion the cell is at given index.
-     *
-     * Similar to insert_above, but index parameter is mandatory
-     *
-     * Index will be brought back into the accissible range [0,n]
-     *
-     * @param type {string} in ['code','html','markdown','heading']
-     * @param [index] {int} a valid index where to inser cell
-     *
-     * @return cell {cell|null} created cell or null
-     **/
-    Notebook.prototype.insert_cell_at_index = function(type, index){
-
-        var ncells = this.ncells();
-        var index = Math.min(index,ncells);
-            index = Math.max(index,0);
+    Notebook.prototype.insert_cell_below = function (type, index) {
+        // type = ('code','html','markdown')
+        // index = cell index or undefined to insert below selected
+        index = this.index_or_selected(index);
         var cell = null;
-
-        if (ncells === 0 || this.is_valid_cell_index(index) || index === ncells) {
+        if (this.ncells() === 0 || this.is_valid_cell_index(index)) {
             if (type === 'code') {
                 cell = new IPython.CodeCell(this.kernel);
                 cell.set_input_prompt();
@@ -590,102 +572,55 @@ var IPython = (function (IPython) {
                 cell = new IPython.RawCell();
             } else if (type === 'heading') {
                 cell = new IPython.HeadingCell();
-            }
-
-            if(this._insert_element_at_index(cell.element,index)){
+            };
+            if (cell !== null) {
+                if (this.ncells() === 0) {
+                    this.element.find('div.end_space').before(cell.element);
+                } else if (this.is_valid_cell_index(index)) {
+                    this.get_cell_element(index).after(cell.element);
+                };
                 cell.render();
                 this.select(this.find_cell_index(cell));
                 this.dirty = true;
-            }
-        }
+                return cell;
+            };
+        };
         return cell;
-
     };
 
-    /**
-     * Insert an element at given cell index.
-     *
-     * @param element {dom element} a cell element
-     * @param [index] {int} a valid index where to inser cell
-     * @private
-     *
-     * return true if everything whent fine.
-     **/
-    Notebook.prototype._insert_element_at_index = function(element, index){
-        if (element === undefined){
-            return false;
-        }
 
-        var ncells = this.ncells();
-
-        if (ncells === 0) {
-            // special case append if empty
-            this.element.find('div.end_space').before(element);
-        } else if ( ncells === index ) {
-            // special case append it the end, but not empty
-            this.get_cell_element(index-1).after(element);
-        } else if (this.is_valid_cell_index(index)) {
-            // otherwise always somewhere to append to
-            this.get_cell_element(index).before(element);
-        } else {
-            return false;
-        }
-
-        if (this.undelete_index !== null && index <= this.undelete_index) {
-            this.undelete_index = this.undelete_index + 1;
-            this.dirty = true;
-        }
-        return true;
-    };
-
-    /**
-     * Insert a cell of given type above given index, or at top
-     * of notebook if index smaller than 0.
-     *
-     * default index value is the one of currently selected cell
-     *
-     * @param type {string} cell type
-     * @param [index] {integer}
-     *
-     * @return handle to created cell or null
-     **/
     Notebook.prototype.insert_cell_above = function (type, index) {
+        // type = ('code','html','markdown')
+        // index = cell index or undefined to insert above selected
         index = this.index_or_selected(index);
-        return this.insert_cell_at_index(type, index);
+        var cell = null;
+        if (this.ncells() === 0 || this.is_valid_cell_index(index)) {
+            if (type === 'code') {
+                cell = new IPython.CodeCell(this.kernel);
+                cell.set_input_prompt();
+            } else if (type === 'markdown') {
+                cell = new IPython.MarkdownCell();
+            } else if (type === 'html') {
+                cell = new IPython.HTMLCell();
+            } else if (type === 'raw') {
+                cell = new IPython.RawCell();
+            } else if (type === 'heading') {
+                cell = new IPython.HeadingCell();
+            };
+            if (cell !== null) {
+                if (this.ncells() === 0) {
+                    this.element.find('div.end_space').before(cell.element);
+                } else if (this.is_valid_cell_index(index)) {
+                    this.get_cell_element(index).before(cell.element);
+                };
+                cell.render();
+                this.select(this.find_cell_index(cell));
+                this.dirty = true;
+                return cell;
+            };
+        };
+        return cell;
     };
-
-    /**
-     * Insert a cell of given type below given index, or at bottom
-     * of notebook if index greater thatn number of cell
-     *
-     * default index value is the one of currently selected cell
-     *
-     * @method insert_cell_below
-     * @param type {string} cell type
-     * @param [index] {integer}
-     *
-     * @return handle to created cell or null
-     *
-     **/
-    Notebook.prototype.insert_cell_below = function (type, index) {
-        index = this.index_or_selected(index);
-        return this.insert_cell_at_index(type, index+1);
-    };
-
-
-    /**
-     * Insert cell at end of notebook
-     *
-     * @method insert_cell_at_bottom
-     * @param type {String} cell type
-     *
-     * @return the added cell; or null
-     **/
-    Notebook.prototype.insert_cell_at_bottom = function (type){
-        var len = this.ncells();
-        return this.insert_cell_below(type,len-1);
-    };
-
 
 
     Notebook.prototype.to_code = function (index) {
@@ -694,7 +629,7 @@ var IPython = (function (IPython) {
             var source_element = this.get_cell_element(i);
             var source_cell = source_element.data("cell");
             if (!(source_cell instanceof IPython.CodeCell)) {
-                var target_cell = this.insert_cell_below('code',i);
+                target_cell = this.insert_cell_below('code',i);
                 var text = source_cell.get_text();
                 if (text === source_cell.placeholder) {
                     text = '';
@@ -716,7 +651,7 @@ var IPython = (function (IPython) {
             var source_element = this.get_cell_element(i);
             var source_cell = source_element.data("cell");
             if (!(source_cell instanceof IPython.MarkdownCell)) {
-                var target_cell = this.insert_cell_below('markdown',i);
+                target_cell = this.insert_cell_below('markdown',i);
                 var text = source_cell.get_text();
                 if (text === source_cell.placeholder) {
                     text = '';
@@ -821,8 +756,8 @@ var IPython = (function (IPython) {
     Notebook.prototype.enable_paste = function () {
         var that = this;
         if (!this.paste_enabled) {
-            $('#paste_cell_replace').removeClass('ui-state-disabled')
-                .on('click', function () {that.paste_cell_replace();});
+            $('#paste_cell').removeClass('ui-state-disabled')
+                .on('click', function () {that.paste_cell();});
             $('#paste_cell_above').removeClass('ui-state-disabled')
                 .on('click', function () {that.paste_cell_above();});
             $('#paste_cell_below').removeClass('ui-state-disabled')
@@ -834,7 +769,7 @@ var IPython = (function (IPython) {
 
     Notebook.prototype.disable_paste = function () {
         if (this.paste_enabled) {
-            $('#paste_cell_replace').addClass('ui-state-disabled').off('click');
+            $('#paste_cell').addClass('ui-state-disabled').off('click');
             $('#paste_cell_above').addClass('ui-state-disabled').off('click');
             $('#paste_cell_below').addClass('ui-state-disabled').off('click');
             this.paste_enabled = false;
@@ -854,12 +789,12 @@ var IPython = (function (IPython) {
     };
 
 
-    Notebook.prototype.paste_cell_replace = function () {
+    Notebook.prototype.paste_cell = function () {
         if (this.clipboard !== null && this.paste_enabled) {
             var cell_data = this.clipboard;
             var new_cell = this.insert_cell_above(cell_data.cell_type);
             new_cell.fromJSON(cell_data);
-            var old_cell = this.get_next_cell(new_cell);
+            old_cell = this.get_next_cell(new_cell);
             this.delete_cell(this.find_cell_index(old_cell));
             this.select(this.find_cell_index(new_cell));
         };
@@ -883,34 +818,6 @@ var IPython = (function (IPython) {
         };
     };
 
-    // Cell undelete
-
-    Notebook.prototype.undelete = function() {
-        if (this.undelete_backup !== null && this.undelete_index !== null) {
-            var current_index = this.get_selected_index();
-            if (this.undelete_index < current_index) {
-                current_index = current_index + 1;
-            }
-            if (this.undelete_index >= this.ncells()) {
-                this.select(this.ncells() - 1);
-            }
-            else {
-                this.select(this.undelete_index);
-            }
-            var cell_data = this.undelete_backup;
-            var new_cell = null;
-            if (this.undelete_below) {
-                new_cell = this.insert_cell_below(cell_data.cell_type);
-            } else {
-                new_cell = this.insert_cell_above(cell_data.cell_type);
-            }
-            new_cell.fromJSON(cell_data);
-            this.select(current_index);
-            this.undelete_backup = null;
-            this.undelete_index = null;
-        }
-        $('#undelete_cell').addClass('ui-state-disabled');
-    }
 
     // Split/merge
 
@@ -918,8 +825,8 @@ var IPython = (function (IPython) {
         // Todo: implement spliting for other cell types.
         var cell = this.get_selected_cell();
         if (cell.is_splittable()) {
-            var texta = cell.get_pre_cursor();
-            var textb = cell.get_post_cursor();
+            texta = cell.get_pre_cursor();
+            textb = cell.get_post_cursor();
             if (cell instanceof IPython.CodeCell) {
                 cell.set_text(texta);
                 var new_cell = this.insert_cell_below('code');
@@ -947,9 +854,9 @@ var IPython = (function (IPython) {
         var index = this.get_selected_index();
         var cell = this.get_cell(index);
         if (index > 0) {
-            var upper_cell = this.get_cell(index-1);
-            var upper_text = upper_cell.get_text();
-            var text = cell.get_text();
+            upper_cell = this.get_cell(index-1);
+            upper_text = upper_cell.get_text();
+            text = cell.get_text();
             if (cell instanceof IPython.CodeCell) {
                 cell.set_text(upper_text+'\n'+text);
             } else if (cell instanceof IPython.MarkdownCell || cell instanceof IPython.HTMLCell) {
@@ -967,9 +874,9 @@ var IPython = (function (IPython) {
         var index = this.get_selected_index();
         var cell = this.get_cell(index);
         if (index < this.ncells()-1) {
-            var lower_cell = this.get_cell(index+1);
-            var lower_text = lower_cell.get_text();
-            var text = cell.get_text();
+            lower_cell = this.get_cell(index+1);
+            lower_text = lower_cell.get_text();
+            text = cell.get_text();
             if (cell instanceof IPython.CodeCell) {
                 cell.set_text(text+'\n'+lower_text);
             } else if (cell instanceof IPython.MarkdownCell || cell instanceof IPython.HTMLCell) {
@@ -1117,7 +1024,7 @@ var IPython = (function (IPython) {
     Notebook.prototype.execute_selected_cell = function (options) {
         // add_new: should a new cell be added if we are at the end of the nb
         // terminal: execute in terminal mode, which stays in the current cell
-        var default_options = {terminal: false, add_new: true};
+        default_options = {terminal: false, add_new: true};
         $.extend(default_options, options);
         var that = this;
         var cell = that.get_selected_cell();
@@ -1142,25 +1049,13 @@ var IPython = (function (IPython) {
     };
 
 
-    Notebook.prototype.execute_cells_below = function () {
-        this.execute_cell_range(this.get_selected_index(), this.ncells());
-        this.scroll_to_bottom();
-    };
-
-    Notebook.prototype.execute_cells_above = function () {
-        this.execute_cell_range(0, this.get_selected_index());
-    };
-
     Notebook.prototype.execute_all_cells = function () {
-        this.execute_cell_range(0, this.ncells());
-        this.scroll_to_bottom();
-    };
-
-    Notebook.prototype.execute_cell_range = function (start, end) {
-        for (var i=start; i<end; i++) {
+        var ncells = this.ncells();
+        for (var i=0; i<ncells; i++) {
             this.select(i);
             this.execute_selected_cell({add_new:false});
         };
+        this.scroll_to_bottom();
     };
 
     // Persistance and loading
@@ -1217,7 +1112,7 @@ var IPython = (function (IPython) {
                 if (cell_data.cell_type === 'plaintext'){
                     cell_data.cell_type = 'raw';
                 }
-
+                
                 new_cell = this.insert_cell_below(cell_data.cell_type);
                 new_cell.fromJSON(cell_data);
             };
@@ -1281,7 +1176,7 @@ var IPython = (function (IPython) {
             error : $.proxy(this.save_notebook_error,this)
         };
         $([IPython.events]).trigger('notebook_saving.Notebook');
-        var url = this.baseProjectUrl() + 'notebooks/' + this.notebook_id;
+        var url = $('body').data('baseProjectUrl') + 'notebooks/' + this.notebook_id;
         $.ajax(url, settings);
     };
 
@@ -1310,7 +1205,7 @@ var IPython = (function (IPython) {
             error : $.proxy(this.load_notebook_error,this),
         };
         $([IPython.events]).trigger('notebook_loading.Notebook');
-        var url = this.baseProjectUrl() + 'notebooks/' + this.notebook_id;
+        var url = $('body').data('baseProjectUrl') + 'notebooks/' + this.notebook_id;
         $.ajax(url, settings);
     };
 
@@ -1350,10 +1245,10 @@ var IPython = (function (IPython) {
             var that = this;
             var orig_vs = 'v' + data.nbformat + '.' + data.orig_nbformat_minor;
             var this_vs = 'v' + data.nbformat + '.' + this.nbformat_minor;
-            var msg = "This notebook is version " + orig_vs + ", but we only fully support up to " +
+            msg = "This notebook is version " + orig_vs + ", but we only fully support up to " +
             this_vs + ".  You can still work with this notebook, but some features " +
             "introduced in later notebook versions may not be available."
-
+            
             var dialog = $('<div/>');
             dialog.html(msg);
             this.element.append(dialog);
@@ -1370,7 +1265,7 @@ var IPython = (function (IPython) {
                 },
                 width: 400
             });
-
+            
         }
         // Create the kernel after the notebook is completely loaded to prevent
         // code execution upon loading, which is a security risk.
@@ -1383,7 +1278,7 @@ var IPython = (function (IPython) {
 
     Notebook.prototype.load_notebook_error = function (xhr, textStatus, errorThrow) {
         if (xhr.status === 500) {
-            var msg = "An error occurred while loading this notebook. Most likely " +
+            msg = "An error occurred while loading this notebook. Most likely " +
             "this notebook is in a newer format than is supported by this " +
             "version of IPython. This version can load notebook formats " +
             "v"+this.nbformat+" or earlier.";
@@ -1405,7 +1300,7 @@ var IPython = (function (IPython) {
             });
         }
     }
-
+    
     IPython.Notebook = Notebook;
 
 

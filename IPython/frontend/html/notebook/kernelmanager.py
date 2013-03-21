@@ -1,4 +1,4 @@
-"""A kernel manager relating notebooks and kernels
+"""A kernel manager for multiple kernels.
 
 Authors:
 
@@ -6,7 +6,7 @@ Authors:
 """
 
 #-----------------------------------------------------------------------------
-#  Copyright (C) 2013  The IPython Development Team
+#  Copyright (C) 2008-2011  The IPython Development Team
 #
 #  Distributed under the terms of the BSD License.  The full license is in
 #  the file COPYING, distributed as part of this software.
@@ -16,15 +16,204 @@ Authors:
 # Imports
 #-----------------------------------------------------------------------------
 
+import os
+import signal
+import sys
+import uuid
+
+import zmq
+from zmq.eventloop.zmqstream import ZMQStream
+
 from tornado import web
 
-from IPython.kernel.multikernelmanager import MultiKernelManager
+from IPython.config.configurable import LoggingConfigurable
+from IPython.utils.importstring import import_item
 from IPython.utils.traitlets import (
-    Dict, List, Unicode, Float, Integer,
+    Instance, Dict, List, Unicode, Float, Integer, Any, DottedObjectName,
 )
 #-----------------------------------------------------------------------------
 # Classes
 #-----------------------------------------------------------------------------
+
+class DuplicateKernelError(Exception):
+    pass
+
+
+class MultiKernelManager(LoggingConfigurable):
+    """A class for managing multiple kernels."""
+    
+    kernel_manager_class = DottedObjectName(
+        "IPython.zmq.blockingkernelmanager.BlockingKernelManager", config=True,
+        help="""The kernel manager class.  This is configurable to allow
+        subclassing of the KernelManager for customized behavior.
+        """
+    )
+    def _kernel_manager_class_changed(self, name, old, new):
+        self.kernel_manager_factory = import_item(new)
+    
+    kernel_manager_factory = Any(help="this is kernel_manager_class after import")
+    def _kernel_manager_factory_default(self):
+        return import_item(self.kernel_manager_class)
+    
+    context = Instance('zmq.Context')
+    def _context_default(self):
+        return zmq.Context.instance()
+    
+    connection_dir = Unicode('')
+
+    _kernels = Dict()
+
+    @property
+    def kernel_ids(self):
+        """Return a list of the kernel ids of the active kernels."""
+        return self._kernels.keys()
+
+    def __len__(self):
+        """Return the number of running kernels."""
+        return len(self.kernel_ids)
+
+    def __contains__(self, kernel_id):
+        if kernel_id in self.kernel_ids:
+            return True
+        else:
+            return False
+
+    def start_kernel(self, **kwargs):
+        """Start a new kernel."""
+        kernel_id = unicode(uuid.uuid4())
+        # use base KernelManager for each Kernel
+        km = self.kernel_manager_factory(connection_file=os.path.join(
+                    self.connection_dir, "kernel-%s.json" % kernel_id),
+                    config=self.config,
+        )
+        km.start_kernel(**kwargs)
+        # start just the shell channel, needed for graceful restart
+        km.start_channels(shell=True, sub=False, stdin=False, hb=False)
+        self._kernels[kernel_id] = km
+        return kernel_id
+
+    def shutdown_kernel(self, kernel_id):
+        """Shutdown a kernel by its kernel uuid.
+
+        Parameters
+        ==========
+        kernel_id : uuid
+            The id of the kernel to shutdown.
+        """
+        self.get_kernel(kernel_id).shutdown_kernel()
+        del self._kernels[kernel_id]
+
+    def kill_kernel(self, kernel_id):
+        """Kill a kernel by its kernel uuid.
+
+        Parameters
+        ==========
+        kernel_id : uuid
+            The id of the kernel to kill.
+        """
+        self.get_kernel(kernel_id).kill_kernel()
+        del self._kernels[kernel_id]
+
+    def interrupt_kernel(self, kernel_id):
+        """Interrupt (SIGINT) the kernel by its uuid.
+
+        Parameters
+        ==========
+        kernel_id : uuid
+            The id of the kernel to interrupt.
+        """
+        return self.get_kernel(kernel_id).interrupt_kernel()
+
+    def signal_kernel(self, kernel_id, signum):
+        """ Sends a signal to the kernel by its uuid.
+
+        Note that since only SIGTERM is supported on Windows, this function
+        is only useful on Unix systems.
+
+        Parameters
+        ==========
+        kernel_id : uuid
+            The id of the kernel to signal.
+        """
+        return self.get_kernel(kernel_id).signal_kernel(signum)
+
+    def get_kernel(self, kernel_id):
+        """Get the single KernelManager object for a kernel by its uuid.
+
+        Parameters
+        ==========
+        kernel_id : uuid
+            The id of the kernel.
+        """
+        km = self._kernels.get(kernel_id)
+        if km is not None:
+            return km
+        else:
+            raise KeyError("Kernel with id not found: %s" % kernel_id)
+
+    def get_kernel_ports(self, kernel_id):
+        """Return a dictionary of ports for a kernel.
+
+        Parameters
+        ==========
+        kernel_id : uuid
+            The id of the kernel.
+
+        Returns
+        =======
+        port_dict : dict
+            A dict of key, value pairs where the keys are the names
+            (stdin_port,iopub_port,shell_port) and the values are the
+            integer port numbers for those channels.
+        """
+        # this will raise a KeyError if not found:
+        km = self.get_kernel(kernel_id)
+        return dict(shell_port=km.shell_port,
+                    iopub_port=km.iopub_port,
+                    stdin_port=km.stdin_port,
+                    hb_port=km.hb_port,
+        )
+
+    def get_kernel_ip(self, kernel_id):
+        """Return ip address for a kernel.
+
+        Parameters
+        ==========
+        kernel_id : uuid
+            The id of the kernel.
+
+        Returns
+        =======
+        ip : str
+            The ip address of the kernel.
+        """
+        return self.get_kernel(kernel_id).ip
+
+    def create_connected_stream(self, ip, port, socket_type):
+        sock = self.context.socket(socket_type)
+        addr = "tcp://%s:%i" % (ip, port)
+        self.log.info("Connecting to: %s" % addr)
+        sock.connect(addr)
+        return ZMQStream(sock)
+
+    def create_iopub_stream(self, kernel_id):
+        ip = self.get_kernel_ip(kernel_id)
+        ports = self.get_kernel_ports(kernel_id)
+        iopub_stream = self.create_connected_stream(ip, ports['iopub_port'], zmq.SUB)
+        iopub_stream.socket.setsockopt(zmq.SUBSCRIBE, b'')
+        return iopub_stream
+
+    def create_shell_stream(self, kernel_id):
+        ip = self.get_kernel_ip(kernel_id)
+        ports = self.get_kernel_ports(kernel_id)
+        shell_stream = self.create_connected_stream(ip, ports['shell_port'], zmq.DEALER)
+        return shell_stream
+
+    def create_hb_stream(self, kernel_id):
+        ip = self.get_kernel_ip(kernel_id)
+        ports = self.get_kernel_ports(kernel_id)
+        hb_stream = self.create_connected_stream(ip, ports['hb_port'], zmq.REQ)
+        return hb_stream
 
 
 class MappingKernelManager(MultiKernelManager):
@@ -90,14 +279,19 @@ class MappingKernelManager(MultiKernelManager):
             self.log.info("Using existing kernel: %s" % kernel_id)
         return kernel_id
 
-    def shutdown_kernel(self, kernel_id, now=False):
+    def shutdown_kernel(self, kernel_id):
         """Shutdown a kernel and remove its notebook association."""
         self._check_kernel_id(kernel_id)
-        super(MappingKernelManager, self).shutdown_kernel(
-            kernel_id, now=now
-        )
+        super(MappingKernelManager, self).shutdown_kernel(kernel_id)
         self.delete_mapping_for_kernel(kernel_id)
         self.log.info("Kernel shutdown: %s" % kernel_id)
+
+    def kill_kernel(self, kernel_id):
+        """Kill a kernel and remove its notebook association."""
+        self._check_kernel_id(kernel_id)
+        super(MappingKernelManager, self).kill_kernel(kernel_id)
+        self.delete_mapping_for_kernel(kernel_id)
+        self.log.info("Kernel killed: %s" % kernel_id)
 
     def interrupt_kernel(self, kernel_id):
         """Interrupt a kernel."""
@@ -108,8 +302,24 @@ class MappingKernelManager(MultiKernelManager):
     def restart_kernel(self, kernel_id):
         """Restart a kernel while keeping clients connected."""
         self._check_kernel_id(kernel_id)
-        super(MappingKernelManager, self).restart_kernel(kernel_id)
+        km = self.get_kernel(kernel_id)
+        km.restart_kernel()
         self.log.info("Kernel restarted: %s" % kernel_id)
+        return kernel_id
+        
+        # the following remains, in case the KM restart machinery is
+        # somehow unacceptable
+        # Get the notebook_id to preserve the kernel/notebook association.
+        notebook_id = self.notebook_for_kernel(kernel_id)
+        # Create the new kernel first so we can move the clients over.
+        new_kernel_id = self.start_kernel()
+        # Now kill the old kernel.
+        self.kill_kernel(kernel_id)
+        # Now save the new kernel/notebook association. We have to save it
+        # after the old kernel is killed as that will delete the mapping.
+        self.set_kernel_for_notebook(notebook_id, new_kernel_id)
+        self.log.info("Kernel restarted: %s" % new_kernel_id)
+        return new_kernel_id
 
     def create_iopub_stream(self, kernel_id):
         """Create a new iopub stream."""

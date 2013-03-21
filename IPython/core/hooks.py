@@ -1,31 +1,37 @@
-"""Hooks for IPython.
+"""hooks for IPython.
 
 In Python, it is possible to overwrite any method of any object if you really
-want to.  But IPython exposes a few 'hooks', methods which are *designed* to
+want to.  But IPython exposes a few 'hooks', methods which are _designed_ to
 be overwritten by users for customization purposes.  This module defines the
 default versions of all such hooks, which get used by IPython if not
 overridden by the user.
 
-Hooks are simple functions, but they should be declared with ``self`` as their
+hooks are simple functions, but they should be declared with 'self' as their
 first argument, because when activated they are registered into IPython as
-instance methods. The self argument will be the IPython running instance
+instance methods.  The self argument will be the IPython running instance
 itself, so hooks have full access to the entire IPython object.
 
-If you wish to define a new hook and activate it, you can make an :doc:`extension
-</config/extensions/index>` or a :ref:`startup script <startup_files>`. For
-example, you could use a startup file like this::
+If you wish to define a new hook and activate it, you need to put the
+necessary code into a python file which can be either imported or execfile()'d
+from within your profile's ipython_config.py configuration.
 
-    import os
+For example, suppose that you have a module called 'myiphooks' in your
+PYTHONPATH, which contains the following definition:
 
-    def calljed(self,filename, linenum):
-        "My editor hook calls the jed editor directly."
-        print "Calling my own editor, jed ..."
-        if os.system('jed +%d %s' % (linenum,filename)) != 0:
-            raise TryNext()
+import os
+from IPython.core import ipapi
+ip = ipapi.get()
 
-    def load_ipython_extension(ip):
-        ip.set_hook('editor', calljed)
+def calljed(self,filename, linenum):
+    "My editor hook calls the jed editor directly."
+    print "Calling my own editor, jed ..."
+    if os.system('jed +%d %s' % (linenum,filename)) != 0:
+        raise TryNext()
 
+ip.set_hook('editor', calljed)
+
+You can then enable the functionality by doing 'import myiphooks'
+somewhere in your configuration files or ipython command line.
 """
 
 #*****************************************************************************

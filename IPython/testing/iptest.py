@@ -162,14 +162,23 @@ have['sqlite3'] = test_for('sqlite3')
 have['cython'] = test_for('Cython')
 have['oct2py'] = test_for('oct2py')
 have['tornado'] = test_for('tornado.version_info', (2,1,0), callback=None)
-have['jinja2'] = test_for('jinja2')
 have['wx'] = test_for('wx')
 have['wx.aui'] = test_for('wx.aui')
 have['azure'] = test_for('azure')
 
-min_zmq = (2,1,11)
+if os.name == 'nt':
+    min_zmq = (2,1,7)
+else:
+    min_zmq = (2,1,4)
 
-have['zmq'] = test_for('zmq.pyzmq_version_info', min_zmq, callback=lambda x: x())
+def version_tuple(mod):
+    "turn '2.1.9' into (2,1,9), and '2.1dev' into (2,1,999)"
+    # turn 'dev' into 999, because Python3 rejects str-int comparisons
+    vs = mod.__version__.replace('dev', '.999')
+    tup = tuple([int(v) for v in vs.split('.') ])
+    return tup
+
+have['zmq'] = test_for('zmq', min_zmq, version_tuple)
 
 #-----------------------------------------------------------------------------
 # Functions and classes
@@ -230,17 +239,13 @@ def make_exclude():
                   # files for web serving.  Occasionally projects may put a .py
                   # file in there (MathJax ships a conf.py), so we might as
                   # well play it safe and skip the whole thing.
-                  ipjoin('frontend', 'html', 'notebook', 'static'),
-                  ipjoin('frontend', 'html', 'notebook', 'fabfile'),
+                  ipjoin('frontend', 'html', 'notebook', 'static')
                   ]
     if not have['sqlite3']:
         exclusions.append(ipjoin('core', 'tests', 'test_history'))
         exclusions.append(ipjoin('core', 'history'))
     if not have['wx']:
         exclusions.append(ipjoin('lib', 'inputhookwx'))
-    
-    if 'IPython.kernel.inprocess' not in sys.argv:
-        exclusions.append(ipjoin('kernel', 'inprocess'))
     
     # FIXME: temporarily disable autoreload tests, as they can produce
     # spurious failures in subsequent tests (cythonmagic).
@@ -250,7 +255,7 @@ def make_exclude():
     # We do this unconditionally, so that the test suite doesn't import
     # gtk, changing the default encoding and masking some unicode bugs.
     exclusions.append(ipjoin('lib', 'inputhookgtk'))
-    exclusions.append(ipjoin('kernel', 'zmq', 'gui', 'gtkembed'))
+    exclusions.append(ipjoin('zmq', 'gui', 'gtkembed'))
 
     # These have to be skipped on win32 because the use echo, rm, cd, etc.
     # See ticket https://github.com/ipython/ipython/issues/87
@@ -265,7 +270,7 @@ def make_exclude():
                            ])
 
     if not have['zmq']:
-        exclusions.append(ipjoin('kernel'))
+        exclusions.append(ipjoin('zmq'))
         exclusions.append(ipjoin('frontend', 'qt'))
         exclusions.append(ipjoin('frontend', 'html'))
         exclusions.append(ipjoin('frontend', 'consoleapp.py'))
@@ -281,7 +286,7 @@ def make_exclude():
     if not have['matplotlib']:
         exclusions.extend([ipjoin('core', 'pylabtools'),
                            ipjoin('core', 'tests', 'test_pylabtools'),
-                           ipjoin('kernel', 'zmq', 'pylab'),
+                           ipjoin('zmq', 'pylab'),
         ])
 
     if not have['cython']:
@@ -294,9 +299,6 @@ def make_exclude():
 
     if not have['tornado']:
         exclusions.append(ipjoin('frontend', 'html'))
-
-    if not have['jinja2']:
-        exclusions.append(ipjoin('frontend', 'html', 'notebook', 'notebookapp'))
 
     if not have['rpy2'] or not have['numpy']:
         exclusions.append(ipjoin('extensions', 'rmagic'))
@@ -317,7 +319,7 @@ def make_exclude():
             continue
         fullpath = pjoin(parent, exclusion)
         if not os.path.exists(fullpath) and not glob.glob(fullpath + '.*'):
-            warn("Excluding nonexistent file: %r" % exclusion)
+            warn("Excluding nonexistent file: %r\n" % exclusion)
 
     return exclusions
 
@@ -435,11 +437,10 @@ def make_runners(inc_slow=False):
 
     # Packages to be tested via nose, that only depend on the stdlib
     nose_pkg_names = ['config', 'core', 'extensions', 'frontend', 'lib',
-                      'testing', 'utils', 'nbformat' ]
+                     'testing', 'utils', 'nbformat' ]
 
     if have['zmq']:
-        nose_pkg_names.append('kernel')
-        nose_pkg_names.append('kernel.inprocess')
+        nose_pkg_names.append('zmq')
         if inc_slow:
             nose_pkg_names.append('parallel')
 
@@ -499,17 +500,8 @@ def run_iptest():
     # use our plugin for doctesting.  It will remove the standard doctest plugin
     # if it finds it enabled
     plugins = [IPythonDoctest(make_exclude()), KnownFailure()]
-    
-    # We need a global ipython running in this process, but the special
-    # in-process group spawns its own IPython kernels, so for *that* group we
-    # must avoid also opening the global one (otherwise there's a conflict of
-    # singletons).  Ultimately the solution to this problem is to refactor our
-    # assumptions about what needs to be a singleton and what doesn't (app
-    # objects should, individual shells shouldn't).  But for now, this
-    # workaround allows the test suite for the inprocess module to complete.
-    if not 'IPython.kernel.inprocess' in sys.argv:
-        globalipapp.start_ipython()
-
+    # We need a global ipython running in this process
+    globalipapp.start_ipython()
     # Now nose can run
     TestProgram(argv=argv, addplugins=plugins)
 

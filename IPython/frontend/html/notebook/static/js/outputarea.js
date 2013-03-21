@@ -25,7 +25,7 @@ var IPython = (function (IPython) {
             this.prompt_area = true;
         } else {
             this.prompt_area = prompt_area;
-        }
+        };
         this.create_elements();
         this.style();
         this.bind_events();
@@ -50,11 +50,11 @@ var IPython = (function (IPython) {
         
         this.collapse_button.button();
         this.collapse_button.addClass('output_collapsed vbox');
-        this.collapse_button.attr('title', 'click to expand output');
+        this.collapse_button.attr('title', 'click to expand outout');
         this.collapse_button.html('. . .');
         
         this.prompt_overlay.addClass('out_prompt_overlay prompt');
-        this.prompt_overlay.attr('title', 'click to expand output; double click to hide output');
+        this.prompt_overlay.attr('title', 'click to expand outout; double click to hide output');
         
         this.collapse();
     };
@@ -79,7 +79,7 @@ var IPython = (function (IPython) {
 
         this.element.resize(function () {
             // FIXME: Firefox on Linux misbehaves, so automatic scrolling is disabled
-            if ( IPython.utils.browser[0] === "Firefox" ) {
+            if ( $.browser.mozilla ) {
                 return;
             }
             // maybe scroll output,
@@ -107,7 +107,7 @@ var IPython = (function (IPython) {
                 this.collapse_button.show();
             }
             this.collapsed = true;
-        }
+        };
     };
 
 
@@ -117,7 +117,7 @@ var IPython = (function (IPython) {
             this.element.show();
             this.prompt_overlay.show();
             this.collapsed = false;
-        }
+        };
     };
 
 
@@ -126,7 +126,7 @@ var IPython = (function (IPython) {
             this.expand();
         } else {
             this.collapse();
-        }
+        };
     };
 
 
@@ -148,7 +148,7 @@ var IPython = (function (IPython) {
         if (this._should_scroll(lines)) {
             // only allow scrolling long-enough output
             this.scroll_area();
-        }
+        };
     };
 
 
@@ -158,7 +158,7 @@ var IPython = (function (IPython) {
         } else {
             // only allow scrolling long-enough output
             this.scroll_if_long(20);
-        }
+        };
     };
 
 
@@ -185,7 +185,7 @@ var IPython = (function (IPython) {
             json.ename = content.ename;
             json.evalue = content.evalue;
             json.traceback = content.traceback;
-        }
+        };
         // append with dynamic=true
         this.append_output(json, true);
     };
@@ -194,22 +194,22 @@ var IPython = (function (IPython) {
     OutputArea.prototype.convert_mime_types = function (json, data) {
         if (data['text/plain'] !== undefined) {
             json.text = data['text/plain'];
-        }
+        };
         if (data['text/html'] !== undefined) {
             json.html = data['text/html'];
-        }
+        };
         if (data['image/svg+xml'] !== undefined) {
             json.svg = data['image/svg+xml'];
-        }
+        };
         if (data['image/png'] !== undefined) {
             json.png = data['image/png'];
-        }
+        };
         if (data['image/jpeg'] !== undefined) {
             json.jpeg = data['image/jpeg'];
-        }
+        };
         if (data['text/latex'] !== undefined) {
             json.latex = data['text/latex'];
-        }
+        };
         if (data['application/json'] !== undefined) {
             try {
                 var json_data = $.parseJSON(data['application/json']);
@@ -220,7 +220,6 @@ var IPython = (function (IPython) {
                 json.json = json_data;
             }
         };
-
         if (data['application/javascript'] !== undefined) {
             json.javascript = data['application/javascript'];
         }
@@ -240,7 +239,7 @@ var IPython = (function (IPython) {
             this.append_display_data(json, dynamic);
         } else if (json.output_type === 'stream') {
             this.append_stream(json);
-        }
+        };
         this.outputs.push(json);
         var that = this;
         setTimeout(function(){that.element.trigger('resize');}, 100);
@@ -269,7 +268,7 @@ var IPython = (function (IPython) {
         // If we just output latex, typeset it.
         if ((json.latex !== undefined) || (json.html !== undefined)) {
             this.typeset();
-        }
+        };
     };
 
 
@@ -285,7 +284,7 @@ var IPython = (function (IPython) {
             var toinsert = this.create_output_area();
             this.append_text(s, toinsert);
             this.element.append(toinsert);
-        }
+        };
     };
 
 
@@ -334,10 +333,9 @@ var IPython = (function (IPython) {
         // If we just output latex, typeset it.
         if ( (json.latex !== undefined) || (json.html !== undefined) ) {
             this.typeset();
-        }
+        };
     };
 
-    OutputArea.display_order = ['javascript','html','latex','svg','png','jpeg','text'];
 
     OutputArea.prototype.append_mime_type = function (json, element, dynamic) {
         if (json.json !== undefined) {
@@ -357,7 +355,6 @@ var IPython = (function (IPython) {
         } else if (json.text !== undefined) {
             this.append_text(json.text, element);
         };
-
     };
 
 
@@ -389,16 +386,14 @@ var IPython = (function (IPython) {
                 .addClass('js-error')
                 );
         }
-    };
+    }
 
 
     OutputArea.prototype.append_text = function (data, element, extra_class) {
         var toinsert = $("<div/>").addClass("box-flex1 output_subarea output_text");
         // escape ANSI & HTML specials in plaintext:
-        data = utils.wrapUrls(data);
         data = utils.fixConsole(data);
         data = utils.fixCarriageReturn(data);
-        data = utils.autoLinkUrls(data);
         if (extra_class){
             toinsert.addClass(extra_class);
         }
@@ -424,7 +419,7 @@ var IPython = (function (IPython) {
             if (!(h0 && w0)) {
                 // zero size, schedule another timeout
                 that._dblclick_to_reset_size(img);
-                return;
+                return
             }
             img.resizable({
                 aspectRatio: true,
@@ -438,7 +433,7 @@ var IPython = (function (IPython) {
                 img.width(w0);
             });
         }, 250);
-    };
+    }
 
 
     OutputArea.prototype.append_png = function (png, element) {
@@ -479,7 +474,7 @@ var IPython = (function (IPython) {
 
     OutputArea.prototype.handle_clear_output = function (content) {
         this.clear_output(content.stdout, content.stderr, content.other);
-    };
+    }
 
 
     OutputArea.prototype.clear_output = function (stdout, stderr, other) {
@@ -552,8 +547,8 @@ var IPython = (function (IPython) {
             clearTimeout(this.clear_out_timeout);
             this.clear_out_timeout = null;
             this.clear_output_callback(this._clear_stdout, this._clear_stderr, this._clear_other);
-        }
-    };
+        };
+    }
 
 
     // JSON serialization
@@ -563,7 +558,7 @@ var IPython = (function (IPython) {
         for (var i=0; i<len; i++) {
             // append with dynamic=false.
             this.append_output(outputs[i], false);
-        }
+        };
     };
 
 
@@ -572,7 +567,7 @@ var IPython = (function (IPython) {
         var len = this.outputs.length;
         for (var i=0; i<len; i++) {
             outputs[i] = this.outputs[i];
-        }
+        };
         return outputs;
     };
 

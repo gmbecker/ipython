@@ -150,7 +150,6 @@ class TerminalMagics(Magics):
     def store_or_execute(self, block, name):
         """ Execute a block, or store it in a variable, per the user's request.
         """
-
         b = self.cleanup_input(block)
         if name:
             # If storing it for further editing
@@ -158,11 +157,7 @@ class TerminalMagics(Magics):
             print("Block assigned to '%s'" % name)
         else:
             self.shell.user_ns['pasted_block'] = b
-            self.shell.using_paste_magics = True
-            try:
-                self.shell.run_cell(b)
-            finally:
-                self.shell.using_paste_magics = False
+            self.shell.run_cell(b)
 
     def rerun_pasted(self, name='pasted_block'):
         """ Rerun a previously pasted command.
@@ -352,19 +347,10 @@ class TerminalInteractiveShell(InteractiveShell):
     term_title = CBool(False, config=True,
         help="Enable auto setting the terminal title."
     )
-    
-    # This `using_paste_magics` is used to detect whether the code is being
-    # executed via paste magics functions
-    using_paste_magics = CBool(False)
 
     # In the terminal, GUI control is done via PyOS_InputHook
-    @staticmethod
-    def enable_gui(gui=None, app=None):
-        """Switch amongst GUI input hooks by name.
-        """
-        # Deferred import
-        from IPython.lib.inputhook import enable_gui as real_enable_gui
-        return real_enable_gui(gui, app)
+    from IPython.lib.inputhook import enable_gui
+    enable_gui = staticmethod(enable_gui)
     
     def __init__(self, config=None, ipython_dir=None, profile_dir=None,
                  user_ns=None, user_module=None, custom_exceptions=((),None),
@@ -735,9 +721,8 @@ class TerminalInteractiveShell(InteractiveShell):
 
     def showindentationerror(self):
         super(TerminalInteractiveShell, self).showindentationerror()
-        if not self.using_paste_magics:
-            print("If you want to paste code into IPython, try the "
-                "%paste and %cpaste magic functions.")
+        print("If you want to paste code into IPython, try the "
+              "%paste and %cpaste magic functions.")
 
 
 InteractiveShellABC.register(TerminalInteractiveShell)

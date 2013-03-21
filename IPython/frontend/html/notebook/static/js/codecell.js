@@ -8,38 +8,6 @@
 //============================================================================
 // CodeCell
 //============================================================================
-/**
- * An extendable module that provide base functionnality to create cell for notebook.
- * @module IPython
- * @namespace IPython
- * @submodule CodeCell
- */
-
-
-/* local util for codemirror */
-var posEq = function(a, b) {return a.line == b.line && a.ch == b.ch;}
-
-/**
- *
- * function to delete until previous non blanking space character
- * or first multiple of 4 tabstop.
- * @private
- */
-CodeMirror.commands.delSpaceToPrevTabStop = function(cm){
-    var from = cm.getCursor(true), to = cm.getCursor(false), sel = !posEq(from, to);
-    if (!posEq(from, to)) {cm.replaceRange("", from, to); return}
-    var cur = cm.getCursor(), line = cm.getLine(cur.line);
-    var tabsize = cm.getOption('tabSize');
-    var chToPrevTabStop = cur.ch-(Math.ceil(cur.ch/tabsize)-1)*tabsize;
-    var from = {ch:cur.ch-chToPrevTabStop,line:cur.line}
-    var select = cm.getRange(from,cur)
-    if( select.match(/^\ +$/) != null){
-        cm.replaceRange("",from,cur)
-    } else {
-        cm.deleteH(-1,"char")
-    }
-};
-
 
 var IPython = (function (IPython) {
     "use strict";
@@ -48,40 +16,16 @@ var IPython = (function (IPython) {
     var key   = IPython.utils.keycodes;
     CodeMirror.modeURL = "/static/codemirror/mode/%N/%N.js";
 
-    /**
-     * A Cell conceived to write code.
-     *
-     * The kernel doesn't have to be set at creation time, in that case
-     * it will be null and set_kernel has to be called later.
-     * @class CodeCell
-     * @extends IPython.Cell
-     *
-     * @constructor
-     * @param {Object|null} kernel
-     * @param {object|undefined} [options]
-     *      @param [options.cm_config] {object} config to pass to CodeMirror
-     */
-    var CodeCell = function (kernel, options) {
-        var options = options || {}
+    var CodeCell = function (kernel) {
+        // The kernel doesn't have to be set at creation time, in that case
+        // it will be null and set_kernel has to be called later.
         this.kernel = kernel || null;
         this.code_mirror = null;
         this.input_prompt_number = null;
+        this.tooltip_on_tab = true;
         this.collapsed = false;
         this.default_mode = 'python';
-
-
-        var cm_overwrite_options  = {
-            extraKeys: {"Tab": "indentMore","Shift-Tab" : "indentLess",'Backspace':"delSpaceToPrevTabStop"},
-            onKeyEvent: $.proxy(this.handle_codemirror_keyevent,this)
-        };
-
-        var arg_cm_options = options.cm_options || {};
-        var cm_config = $.extend({},CodeCell.cm_default, arg_cm_options, cm_overwrite_options);
-
-        var options = {};
-        options.cm_config = cm_config;
-
-        IPython.Cell.apply(this,[options]);
+        IPython.Cell.apply(this, arguments);
 
         var that = this;
         this.element.focusout(
@@ -89,39 +33,29 @@ var IPython = (function (IPython) {
         );
     };
 
-    CodeCell.cm_default = {
-            mode: 'python',
-            theme: 'ipython',
-            matchBrackets: true
-    };
-
 
     CodeCell.prototype = new IPython.Cell();
 
-    /**
-     * @method auto_highlight
-     */
+
     CodeCell.prototype.auto_highlight = function () {
         this._auto_highlight(IPython.config.cell_magic_highlight)
     };
 
-    /** @method create_element */
     CodeCell.prototype.create_element = function () {
-        IPython.Cell.prototype.create_element.apply(this, arguments);
-
         var cell =  $('<div></div>').addClass('cell border-box-sizing code_cell vbox');
         cell.attr('tabindex','2');
-
-        this.celltoolbar = new IPython.CellToolbar(this);
-
         var input = $('<div></div>').addClass('input hbox');
-        var vbox = $('<div/>').addClass('vbox box-flex1')
         input.append($('<div/>').addClass('prompt input_prompt'));
-        vbox.append(this.celltoolbar.element);
-        var input_area = $('<div/>').addClass('input_area');
-        this.code_mirror = CodeMirror(input_area.get(0), this.cm_config);
-        vbox.append(input_area);
-        input.append(vbox);
+        var input_area = $('<div/>').addClass('input_area box-flex1');
+        this.code_mirror = CodeMirror(input_area.get(0), {
+            indentUnit : 4,
+            mode: 'python',
+            theme: 'ipython',
+            readOnly: this.read_only,
+            extraKeys: {"Tab": "indentMore","Shift-Tab" : "indentLess",'Backspace':"delSpaceToPrevTabStop"},
+            onKeyEvent: $.proxy(this.handle_codemirror_keyevent,this)
+        });
+        input.append(input_area);
         var output = $('<div></div>');
         cell.append(input).append(output);
         this.element = cell;
@@ -135,14 +69,11 @@ var IPython = (function (IPython) {
         }
     };
 
-    /**
-     *  This method gets called in CodeMirror's onKeyDown/onKeyPress
-     *  handlers and is used to provide custom key handling. Its return
-     *  value is used to determine if CodeMirror should ignore the event:
-     *  true = ignore, false = don't ignore.
-     *  @method handle_codemirror_keyevent
-     */
     CodeCell.prototype.handle_codemirror_keyevent = function (editor, event) {
+        // This method gets called in CodeMirror's onKeyDown/onKeyPress
+        // handlers and is used to provide custom key handling. Its return
+        // value is used to determine if CodeMirror should ignore the event:
+        // true = ignore, false = don't ignore.
 
         if (this.read_only){
             return false;
@@ -189,27 +120,15 @@ var IPython = (function (IPython) {
             } else {
                 return true;
             };
-        } else if (event.keyCode === key.TAB && event.type == 'keydown' && event.shiftKey) {
-                if (editor.somethingSelected()){
-                    var anchor = editor.getCursor("anchor");
-                    var head = editor.getCursor("head");
-                    if( anchor.line != head.line){
-                        return false;
-                    }
-                }
-                IPython.tooltip.request(that);
-                event.stop();
-                return true;
         } else if (event.keyCode === key.TAB && event.type == 'keydown') {
             // Tab completion.
             //Do not trim here because of tooltip
-            if (editor.somethingSelected()){return false}
             var pre_cursor = editor.getRange({line:cur.line,ch:0},cur);
             if (pre_cursor.trim() === "") {
                 // Don't autocomplete if the part of the line before the cursor
                 // is empty.  In this case, let CodeMirror handle indentation.
                 return false;
-            } else if ((pre_cursor.substr(-1) === "("|| pre_cursor.substr(-1) === " ") && IPython.config.tooltip_on_tab ) {
+            } else if ((pre_cursor.substr(-1) === "("|| pre_cursor.substr(-1) === " ") && that.tooltip_on_tab ) {
                 IPython.tooltip.request(that);
                 // Prevent the event from bubbling up.
                 event.stop();
@@ -235,10 +154,7 @@ var IPython = (function (IPython) {
         this.kernel = kernel;
     }
 
-    /**
-     * Execute current code cell to the kernel
-     * @method execute
-     */
+
     CodeCell.prototype.execute = function () {
         this.output_area.clear_output(true, true, true);
         this.set_input_prompt('*');
@@ -252,10 +168,7 @@ var IPython = (function (IPython) {
         var msg_id = this.kernel.execute(this.get_text(), callbacks, {silent: false});
     };
 
-    /**
-     * @method _handle_execute_reply
-     * @private
-     */
+
     CodeCell.prototype._handle_execute_reply = function (content) {
         this.set_input_prompt(content.execution_count);
         this.element.removeClass("running");
@@ -312,17 +225,20 @@ var IPython = (function (IPython) {
     };
 
 
+
+
+
     CodeCell.input_prompt_classical = function (prompt_value, lines_number) {
         var ns = prompt_value || "&nbsp;";
         return 'In&nbsp;[' + ns + ']:'
     };
-
+    
     CodeCell.input_prompt_continuation = function (prompt_value, lines_number) {
         var html = [CodeCell.input_prompt_classical(prompt_value, lines_number)];
         for(var i=1; i < lines_number; i++){html.push(['...:'])};
         return html.join('</br>')
     };
-
+    
     CodeCell.input_prompt_function = CodeCell.input_prompt_classical;
 
 
@@ -331,7 +247,9 @@ var IPython = (function (IPython) {
         if( this.code_mirror != undefined) {
            nline = this.code_mirror.lineCount();
         }
-        this.input_prompt_number = number;
+        if (number){
+            this.input_prompt_number = number;
+        }
         var prompt_html = CodeCell.input_prompt_function(this.input_prompt_number, nline);
         this.element.find('div.input_prompt').html(prompt_html);
     };

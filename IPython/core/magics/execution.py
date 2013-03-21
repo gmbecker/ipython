@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Implementation of execution-related magic functions.
 """
 #-----------------------------------------------------------------------------
@@ -15,7 +14,6 @@
 
 # Stdlib
 import __builtin__ as builtin_mod
-import ast
 import bdb
 import os
 import sys
@@ -43,7 +41,6 @@ from IPython.core.magic import (Magics, magics_class, line_magic, cell_magic,
                                 line_cell_magic, on_off, needs_local_scope)
 from IPython.testing.skipdoctest import skip_doctest
 from IPython.utils import py3compat
-from IPython.utils.contexts import preserve_keys
 from IPython.utils.io import capture_output
 from IPython.utils.ipstruct import Struct
 from IPython.utils.module_paths import find_mod
@@ -94,7 +91,7 @@ python-profiler package from non-free.""")
         empty) statement in the first line.  Cell mode allows you to easily
         profile multiline blocks without having to put them in a separate
         function.
-
+        
         The given statement (which doesn't require quote marks) is run via the
         python profiler in a manner similar to the profile.run() function.
         Namespaces are internally managed to work correctly; profile.run
@@ -415,10 +412,6 @@ python-profiler package from non-free.""")
         the first breakpoint must be set on a line which actually does
         something (not a comment or docstring) for it to stop execution.
 
-        Or you can specify a breakpoint in a different file::
-
-          %run -d -b myotherfile.py:20 myscript
-
         When the pdb debugger starts, you will see a (Pdb) prompt.  You must
         first enter 'c' (without quotes) to start execution up to the first
         breakpoint.
@@ -484,9 +477,7 @@ python-profiler package from non-free.""")
             return
 
         if filename.lower().endswith('.ipy'):
-            with preserve_keys(self.shell.user_ns, '__file__'):
-                self.shell.user_ns['__file__'] = filename
-                self.shell.safe_execfile_ipy(filename)
+            self.shell.safe_execfile_ipy(filename)
             return
 
         # Control the response to exit() calls made by the script being run
@@ -556,11 +547,11 @@ python-profiler package from non-free.""")
                         bdb.Breakpoint.bpbynumber = [None]
                         # Set an initial breakpoint to stop execution
                         maxtries = 10
-                        bp_file, bp_line = parse_breakpoint(opts.get('b', ['1'])[0], filename)
-                        checkline = deb.checkline(bp_file, bp_line)
+                        bp = int(opts.get('b', [1])[0])
+                        checkline = deb.checkline(filename, bp)
                         if not checkline:
-                            for bp in range(bp_line + 1, bp_line + maxtries + 1):
-                                if deb.checkline(bp_file, bp):
+                            for bp in range(bp + 1, bp + maxtries + 1):
+                                if deb.checkline(filename, bp):
                                     break
                             else:
                                 msg = ("\nI failed to find a valid line to set "
@@ -571,12 +562,7 @@ python-profiler package from non-free.""")
                                 error(msg)
                                 return
                         # if we find a good linenumber, set the breakpoint
-                        deb.do_break('%s:%s' % (bp_file, bp_line))
-
-                        # Mimic Pdb._runscript(...)
-                        deb._wait_for_mainpyfile = True
-                        deb.mainpyfile = deb.canonic(filename)
-
+                        deb.do_break('%s:%s' % (filename, bp))
                         # Start file run
                         print "NOTE: Enter 'c' at the",
                         print "%s prompt to start your script." % deb.prompt
@@ -628,7 +614,7 @@ python-profiler package from non-free.""")
                                 t_sys = t1[1] - t0[1]
                                 print "\nIPython CPU timings (estimated):"
                                 print "Total runs performed:", nruns
-                                print "  Times  : %10s   %10s" % ('Total', 'Per run')
+                                print "  Times  : %10.2f    %10.2f" % ('Total', 'Per run')
                                 print "  User   : %10.2f s, %10.2f s." % (t_usr, t_usr / nruns)
                                 print "  System : %10.2f s, %10.2f s." % (t_sys, t_sys / nruns)
                             twall1 = time.time()
@@ -652,8 +638,7 @@ python-profiler package from non-free.""")
                     # worry about a possible KeyError.
                     prog_ns.pop('__name__', None)
 
-                    with preserve_keys(self.shell.user_ns, '__file__'):
-                        self.shell.user_ns.update(prog_ns)
+                    self.shell.user_ns.update(prog_ns)
         finally:
             # It's a bit of a mystery why, but __builtins__ can change from
             # being a module to becoming a dict missing some key data after
@@ -676,7 +661,7 @@ python-profiler package from non-free.""")
                 del sys.modules[main_mod_name]
 
         return stats
-    
+
     @skip_doctest
     @line_cell_magic
     def timeit(self, line='', cell=None):
@@ -747,12 +732,36 @@ python-profiler package from non-free.""")
         those from %timeit."""
 
         import timeit
+        import math
+
+        # XXX: Unfortunately the unicode 'micro' symbol can cause problems in
+        # certain terminals.  Until we figure out a robust way of
+        # auto-detecting if the terminal can deal with it, use plain 'us' for
+        # microseconds.  I am really NOT happy about disabling the proper
+        # 'micro' prefix, but crashing is worse... If anyone knows what the
+        # right solution for this is, I'm all ears...
+        #
+        # Note: using
+        #
+        # s = u'\xb5'
+        # s.encode(sys.getdefaultencoding())
+        #
+        # is not sufficient, as I've seen terminals where that fails but
+        # print s
+        #
+        # succeeds
+        #
+        # See bug: https://bugs.launchpad.net/ipython/+bug/348466
+
+        #units = [u"s", u"ms",u'\xb5',"ns"]
+        units = [u"s", u"ms",u'us',"ns"]
+
+        scaling = [1, 1e3, 1e6, 1e9]
 
         opts, stmt = self.parse_options(line,'n:r:tcp:',
                                         posix=False, strict=False)
         if stmt == "" and cell is None:
             return
-        
         timefunc = timeit.default_timer
         number = int(getattr(opts, "n", 0))
         repeat = int(getattr(opts, "r", timeit.default_repeat))
@@ -767,54 +776,26 @@ python-profiler package from non-free.""")
         # but is there a better way to achieve that the code stmt has access
         # to the shell namespace?
         transform  = self.shell.input_splitter.transform_cell
-
         if cell is None:
             # called as line magic
-            ast_setup = ast.parse("pass")
-            ast_stmt = ast.parse(transform(stmt))
+            setup = 'pass'
+            stmt = timeit.reindent(transform(stmt), 8)
         else:
-            ast_setup = ast.parse(transform(stmt))
-            ast_stmt = ast.parse(transform(cell))
+            setup = timeit.reindent(transform(stmt), 4)
+            stmt = timeit.reindent(transform(cell), 8)
 
-        ast_setup = self.shell.transform_ast(ast_setup)
-        ast_stmt = self.shell.transform_ast(ast_stmt)
-
-        # This codestring is taken from timeit.template - we fill it in as an
-        # AST, so that we can apply our AST transformations to the user code
-        # without affecting the timing code.
-        timeit_ast_template = ast.parse('def inner(_it, _timer):\n'
-                                        '    setup\n'
-                                        '    _t0 = _timer()\n'
-                                        '    for _i in _it:\n'
-                                        '        stmt\n'
-                                        '    _t1 = _timer()\n'
-                                        '    return _t1 - _t0\n')
-
-        class TimeitTemplateFiller(ast.NodeTransformer):
-            "This is quite tightly tied to the template definition above."
-            def visit_FunctionDef(self, node):
-                "Fill in the setup statement"
-                self.generic_visit(node)
-                if node.name == "inner":
-                    node.body[:1] = ast_setup.body
-
-                return node
-
-            def visit_For(self, node):
-                "Fill in the statement to be timed"
-                if getattr(getattr(node.body[0], 'value', None), 'id', None) == 'stmt':
-                    node.body = ast_stmt.body
-                return node
-
-        timeit_ast = TimeitTemplateFiller().visit(timeit_ast_template)
-        timeit_ast = ast.fix_missing_locations(timeit_ast)
+        # From Python 3.3, this template uses new-style string formatting.
+        if sys.version_info >= (3, 3):
+            src = timeit.template.format(stmt=stmt, setup=setup)
+        else:
+            src = timeit.template % dict(stmt=stmt, setup=setup)
 
         # Track compilation time so it can be reported if too long
         # Minimum time above which compilation time will be reported
         tc_min = 0.1
 
         t0 = clock()
-        code = compile(timeit_ast, "<magic-timeit>", "exec")
+        code = compile(src, "<magic-timeit>", "exec")
         tc = clock()-t0
 
         ns = {}
@@ -831,49 +812,50 @@ python-profiler package from non-free.""")
 
         best = min(timer.repeat(repeat, number)) / number
 
-        print u"%d loops, best of %d: %s per loop" % (number, repeat,
-                                                          _format_time(best, precision))
+        if best > 0.0 and best < 1000.0:
+            order = min(-int(math.floor(math.log10(best)) // 3), 3)
+        elif best >= 1000.0:
+            order = 0
+        else:
+            order = 3
+        print u"%d loops, best of %d: %.*g %s per loop" % (number, repeat,
+                                                          precision,
+                                                          best * scaling[order],
+                                                          units[order])
         if tc > tc_min:
             print "Compiler time: %.2f s" % tc
 
     @skip_doctest
     @needs_local_scope
-    @line_cell_magic
-    def time(self,line='', cell=None, local_ns=None):
+    @line_magic
+    def time(self,parameter_s, local_ns=None):
         """Time execution of a Python statement or expression.
 
         The CPU and wall clock times are printed, and the value of the
         expression (if any) is returned.  Note that under Win32, system time
         is always reported as 0, since it can not be measured.
-        
-        This function can be used both as a line and cell magic:
 
-        - In line mode you can time a single-line statement (though multiple
-          ones can be chained with using semicolons).
-
-        - In cell mode, you can time the cell body (a directly 
-          following statement raises an error).
-
-        This function provides very basic timing functionality.  Use the timeit 
-        magic for more controll over the measurement.
+        This function provides very basic timing functionality.  In Python
+        2.3, the timeit module offers more control and sophistication, so this
+        could be rewritten to use it (patches welcome).
 
         Examples
         --------
         ::
 
-          In [1]: %time 2**128
+          In [1]: time 2**128
           CPU times: user 0.00 s, sys: 0.00 s, total: 0.00 s
           Wall time: 0.00
           Out[1]: 340282366920938463463374607431768211456L
 
           In [2]: n = 1000000
 
-          In [3]: %time sum(range(n))
+          In [3]: time sum(range(n))
           CPU times: user 1.20 s, sys: 0.05 s, total: 1.25 s
           Wall time: 1.37
           Out[3]: 499999500000L
 
-          In [4]: %time print 'hello world'
+          In [4]: time print 'hello world'
           hello world
           CPU times: user 0.00 s, sys: 0.00 s, total: 0.00 s
           Wall time: 0.00
@@ -884,50 +866,33 @@ python-profiler package from non-free.""")
           the expression can take a noticeable amount of time to compute, that
           time is purely due to the compilation:
 
-          In [5]: %time 3**9999;
+          In [5]: time 3**9999;
           CPU times: user 0.00 s, sys: 0.00 s, total: 0.00 s
           Wall time: 0.00 s
 
-          In [6]: %time 3**999999;
+          In [6]: time 3**999999;
           CPU times: user 0.00 s, sys: 0.00 s, total: 0.00 s
           Wall time: 0.00 s
           Compiler : 0.78 s
           """
 
         # fail immediately if the given expression can't be compiled
-        
-        if line and cell:
-            raise UsageError("Can't use statement directly after '%%time'!")
-        
-        if cell:
-            expr = self.shell.prefilter(cell,False)
-        else:
-            expr = self.shell.prefilter(line,False)
 
-        # Minimum time above which parse time will be reported
-        tp_min = 0.1
-
-        t0 = clock()
-        expr_ast = ast.parse(expr)
-        tp = clock()-t0
-
-        # Apply AST transformations
-        expr_ast = self.shell.transform_ast(expr_ast)
+        expr = self.shell.prefilter(parameter_s,False)
 
         # Minimum time above which compilation time will be reported
         tc_min = 0.1
 
-        if len(expr_ast.body)==1 and isinstance(expr_ast.body[0], ast.Expr):
+        try:
             mode = 'eval'
-            source = '<timed eval>'
-            expr_ast = ast.Expression(expr_ast.body[0].value)
-        else:
+            t0 = clock()
+            code = compile(expr,'<timed eval>',mode)
+            tc = clock()-t0
+        except SyntaxError:
             mode = 'exec'
-            source = '<timed exec>'
-        t0 = clock()
-        code = compile(expr_ast, source, mode)
-        tc = clock()-t0
-
+            t0 = clock()
+            code = compile(expr,'<timed exec>',mode)
+            tc = clock()-t0
         # skew measurement as little as possible
         glob = self.shell.user_ns
         wtime = time.time
@@ -948,15 +913,11 @@ python-profiler package from non-free.""")
         cpu_user = end[0]-st[0]
         cpu_sys = end[1]-st[1]
         cpu_tot = cpu_user+cpu_sys
-        # On windows cpu_sys is always zero, so no new information to the next print 
-        if sys.platform != 'win32':
-            print "CPU times: user %s, sys: %s, total: %s" % \
-                (_format_time(cpu_user),_format_time(cpu_sys),_format_time(cpu_tot))
-        print "Wall time: %s" % _format_time(wall_time)
+        print "CPU times: user %.2f s, sys: %.2f s, total: %.2f s" % \
+              (cpu_user,cpu_sys,cpu_tot)
+        print "Wall time: %.2f s" % wall_time
         if tc > tc_min:
-            print "Compiler : %s" % _format_time(tc)
-        if tp > tp_min:
-            print "Parser   : %s" % _format_time(tp)
+            print "Compiler : %.2f s" % tc
         return out
 
     @skip_doctest
@@ -1037,17 +998,17 @@ python-profiler package from non-free.""")
         print 'Macro `%s` created. To execute, type its name (without quotes).' % name
         print '=== Macro contents: ==='
         print macro,
-
+    
     @magic_arguments.magic_arguments()
     @magic_arguments.argument('output', type=str, default='', nargs='?',
         help="""The name of the variable in which to store output.
         This is a utils.io.CapturedIO object with stdout/err attributes
         for the text of the captured output.
-
+        
         CapturedOutput also has a show() method for displaying the output,
         and __call__ as well, so you can use that to quickly display the
         output.
-
+        
         If unspecified, captured output is discarded.
         """
     )
@@ -1067,52 +1028,3 @@ python-profiler package from non-free.""")
             self.shell.run_cell(cell)
         if args.output:
             self.shell.user_ns[args.output] = io
-
-def parse_breakpoint(text, current_file):
-    '''Returns (file, line) for file:line and (current_file, line) for line'''
-    colon = text.find(':')
-    if colon == -1:
-        return current_file, int(text)
-    else:
-        return text[:colon], int(text[colon+1:])
-    
-def _format_time(timespan, precision=3):
-    """Formats the timespan in a human readable form"""
-    import math
-    
-    if timespan >= 60.0:
-        # we have more than a minute, format that in a human readable form
-        # Idea from http://snipplr.com/view/5713/
-        parts = [("d", 60*60*24),("h", 60*60),("min", 60), ("s", 1)]
-        time = []
-        leftover = timespan
-        for suffix, length in parts:
-            value = int(leftover / length)
-            if value > 0:
-                leftover = leftover % length
-                time.append(u'%s%s' % (str(value), suffix))
-            if leftover < 1:
-                break
-        return " ".join(time)
-
-    
-    # Unfortunately the unicode 'micro' symbol can cause problems in
-    # certain terminals.  
-    # See bug: https://bugs.launchpad.net/ipython/+bug/348466
-    # Try to prevent crashes by being more secure than it needs to
-    # E.g. eclipse is able to print a µ, but has no sys.stdout.encoding set.
-    units = [u"s", u"ms",u'us',"ns"] # the save value   
-    if hasattr(sys.stdout, 'encoding') and sys.stdout.encoding:
-        try:
-            u'\xb5'.encode(sys.stdout.encoding)
-            units = [u"s", u"ms",u'\xb5s',"ns"]
-        except:
-            pass
-    scaling = [1, 1e3, 1e6, 1e9]
-        
-    if timespan > 0.0:
-        order = min(-int(math.floor(math.log10(timespan)) // 3), 3)
-    else:
-        order = 3
-    ret =  u"%.*g %s" % (precision, timespan * scaling[order], units[order])
-    return ret

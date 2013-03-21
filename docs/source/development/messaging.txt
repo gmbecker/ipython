@@ -633,15 +633,8 @@ Message type: ``history_request``::
       # If hist_access_type is 'search', get cells matching the specified glob
       # pattern (with * and ? as wildcards).
       'pattern' : str,
-
-      # If hist_access_type is 'search' and unique is true, do not
-      # include duplicated history.  Default is false.
-      'unique' : bool,
       
     }
-
-.. versionadded:: 4.0
-   The key ``unique`` for ``history_request``.
 
 Message type: ``history_reply``::
 
@@ -676,47 +669,6 @@ Message type: ``connect_reply``::
         'hb_port' : int    # The port the heartbeat socket is listening on.
     }
 
-
-Kernel info
------------
-
-If a client needs to know what protocol the kernel supports, it can
-ask version number of the messaging protocol supported by the kernel.
-This message can be used to fetch other core information of the
-kernel, including language (e.g., Python), language version number and
-IPython version number.
-
-Message type: ``kernel_info_request``::
-
-    content = {
-    }
-
-Message type: ``kernel_info_reply``::
-
-    content = {
-        # Version of messaging protocol (mandatory).
-        # The first integer indicates major version.  It is incremented when
-        # there is any backward incompatible change.
-        # The second integer indicates minor version.  It is incremented when
-        # there is any backward compatible change.
-        'protocol_version': [int, int],
-
-        # IPython version number (optional).
-        # Non-python kernel backend may not have this version number.
-        # The last component is an extra field, which may be 'dev' or
-        # 'rc1' in development version.  It is an empty string for
-        # released version.
-        'ipython_version': [int, int, int, str],
-
-        # Language version number (mandatory).
-        # It is Python version number (e.g., [2, 7, 3]) for the kernel
-        # included in IPython.
-        'language_version': [int, ...],
-
-        # Programming language in which kernel is implemented (mandatory).
-        # Kernel included in IPython returns 'python'.
-        'language': str,
-    }
 
 
 Kernel shutdown
@@ -827,7 +779,7 @@ data_pub messages are constructed via the :func:`IPython.lib.datapub.publish_dat
 
 .. sourcecode:: python
 
-    from IPython.kernel.zmq.datapub import publish_data
+    from IPython.zmq.datapub import publish_data
     ns = dict(x=my_array)
     publish_data(ns)
 

@@ -27,13 +27,12 @@ http://www.python.org/2.2.3/license.html"""
 from __future__ import print_function
 
 import bdb
-import functools
 import linecache
 import sys
 
 from IPython.utils import PyColorize, ulinecache
 from IPython.core import ipapi
-from IPython.utils import coloransi, io, py3compat
+from IPython.utils import coloransi, io, openpy, py3compat
 from IPython.core.excolors import exception_colors
 
 # See if we can use pydb.
@@ -60,18 +59,10 @@ else:
 # Allow the set_trace code to operate outside of an ipython instance, even if
 # it does so with some limitations.  The rest of this support is implemented in
 # the Tracer constructor.
-def BdbQuit_excepthook(et, ev, tb, excepthook=None):
-    """Exception hook which handles `BdbQuit` exceptions.
-
-    All other exceptions are processed using the `excepthook`
-    parameter.
-    """
+def BdbQuit_excepthook(et,ev,tb):
     if et==bdb.BdbQuit:
         print('Exiting Debugger.')
-    elif excepthook is not None:
-        excepthook(et, ev, tb)
     else:
-        # Backwards compatibility. Raise deprecation warning?
         BdbQuit_excepthook.excepthook_ori(et,ev,tb)
 
 def BdbQuit_IPython_excepthook(self,et,ev,tb,tb_offset=None):
@@ -117,8 +108,8 @@ class Tracer(object):
             ip = get_ipython()
         except NameError:
             # Outside of ipython, we set our own exception hook manually
-            sys.excepthook = functools.partial(BdbQuit_excepthook,
-                                               excepthook=sys.excepthook)
+            BdbQuit_excepthook.excepthook_ori = sys.excepthook
+            sys.excepthook = BdbQuit_excepthook
             def_colors = 'NoColor'
             try:
                 # Limited tab completion support
@@ -145,7 +136,7 @@ class Tracer(object):
         except:
             # This is only a user-facing convenience, so any error we encounter
             # here can be warned about but can be otherwise ignored.  These
-            # printouts will tell us about problems if this API changes
+            # printouts will tell us about problems if this API changes 
             import traceback
             traceback.print_exc()
 
@@ -162,7 +153,7 @@ class Tracer(object):
 
 def decorate_fn_with_doc(new_fn, old_fn, additional_text=""):
     """Make new_fn have old_fn's doc string. This is particularly useful
-    for the ``do_...`` commands that hook into the help system.
+    for the do_... commands that hook into the help system.
     Adapted from from a comp.lang.python posting
     by Duncan Booth."""
     def wrapper(*args, **kw):
@@ -361,8 +352,8 @@ class Pdb(OldPdb):
 
         start = lineno - 1 - context//2
         lines = ulinecache.getlines(filename)
-        start = min(start, len(lines) - context)
         start = max(start, 0)
+        start = min(start, len(lines) - context)
         lines = lines[start : start + context]
 
         for i,line in enumerate(lines):
@@ -432,7 +423,7 @@ class Pdb(OldPdb):
             src = []
             if filename == "<string>" and hasattr(self, "_exec_filename"):
                 filename = self._exec_filename
-
+            
             for lineno in range(first, last+1):
                 line = ulinecache.getline(filename, lineno)
                 if not line:
@@ -486,51 +477,23 @@ class Pdb(OldPdb):
     do_l = do_list
 
     def do_pdef(self, arg):
-        """Print the call signature for any callable object.
-
-        The debugger interface to %pdef"""
+        """The debugger interface to magic_pdef"""
         namespaces = [('Locals', self.curframe.f_locals),
                       ('Globals', self.curframe.f_globals)]
         self.shell.find_line_magic('pdef')(arg, namespaces=namespaces)
 
     def do_pdoc(self, arg):
-        """Print the docstring for an object.
-
-        The debugger interface to %pdoc."""
+        """The debugger interface to magic_pdoc"""
         namespaces = [('Locals', self.curframe.f_locals),
                       ('Globals', self.curframe.f_globals)]
         self.shell.find_line_magic('pdoc')(arg, namespaces=namespaces)
 
-    def do_pfile(self, arg):
-        """Print (or run through pager) the file where an object is defined.
-
-        The debugger interface to %pfile.
-        """
-        namespaces = [('Locals', self.curframe.f_locals),
-                      ('Globals', self.curframe.f_globals)]
-        self.shell.find_line_magic('pfile')(arg, namespaces=namespaces)
-
     def do_pinfo(self, arg):
-        """Provide detailed information about an object.
-
-        The debugger interface to %pinfo, i.e., obj?."""
+        """The debugger equivalant of ?obj"""
         namespaces = [('Locals', self.curframe.f_locals),
                       ('Globals', self.curframe.f_globals)]
-        self.shell.find_line_magic('pinfo')(arg, namespaces=namespaces)
-
-    def do_pinfo2(self, arg):
-        """Provide extra detailed information about an object.
-
-        The debugger interface to %pinfo2, i.e., obj??."""
-        namespaces = [('Locals', self.curframe.f_locals),
-                      ('Globals', self.curframe.f_globals)]
-        self.shell.find_line_magic('pinfo2')(arg, namespaces=namespaces)
-
-    def do_psource(self, arg):
-        """Print (or run through pager) the source code for an object."""
-        namespaces = [('Locals', self.curframe.f_locals),
-                      ('Globals', self.curframe.f_globals)]
-        self.shell.find_line_magic('psource')(arg, namespaces=namespaces)
+        self.shell.find_line_magic('pinfo')("pinfo %s" % arg,
+                                            namespaces=namespaces)
 
     def checkline(self, filename, lineno):
         """Check whether specified line seems to be executable.

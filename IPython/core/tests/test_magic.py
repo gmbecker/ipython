@@ -28,7 +28,7 @@ from IPython.core.magic import (Magics, magics_class, line_magic,
                                 cell_magic, line_cell_magic,
                                 register_line_magic, register_cell_magic,
                                 register_line_cell_magic)
-from IPython.core.magics import execution, script, code
+from IPython.core.magics import execution, script
 from IPython.nbformat.v3.tests.nbexamples import nb0
 from IPython.nbformat import current
 from IPython.testing import decorators as dec
@@ -262,6 +262,9 @@ def test_reset_in_length():
     _ip.run_cell("reset -f in")
     nt.assert_true(len(_ip.user_ns['In']) == _ip.displayhook.prompt_count+1)
 
+def test_time():
+    _ip.magic('time None')
+
 def test_tb_syntaxerror():
     """test %tb after a SyntaxError"""
     ip = get_ipython()
@@ -283,23 +286,15 @@ def test_tb_syntaxerror():
 def test_time():
     ip = get_ipython()
     
-    with tt.AssertPrints("Wall time: "):
+    with tt.AssertPrints("CPU times: user 0.00 s, sys: 0.00 s, total: 0.00 s"):
         ip.run_cell("%time None")
     
     ip.run_cell("def f(kmjy):\n"
                 "    %time print (2*kmjy)")
     
-    with tt.AssertPrints("Wall time: "):
+    with tt.AssertPrints("CPU times: user 0.00 s, sys: 0.00 s, total: 0.00 s"):
         with tt.AssertPrints("hihi", suppress=False):
             ip.run_cell("f('hi')")
-
-
-@dec.skip_win32
-def test_time2():
-    ip = get_ipython()
-    
-    with tt.AssertPrints("CPU times: user "):
-        ip.run_cell("%time None")
 
 def test_doctest_mode():
     "Toggle doctest_mode twice, it should be a no-op and run without error"
@@ -797,49 +792,3 @@ def test_store():
     ip.user_ns['var'] = 39
     ip.run_line_magic('store' , '-r')
     nt.assert_equal(ip.user_ns['var'], 39)
-
-
-def _run_edit_test(arg_s, exp_filename=None,
-                        exp_lineno=-1,
-                        exp_contents=None,
-                        exp_is_temp=None):
-    ip = get_ipython()
-    M = code.CodeMagics(ip)
-    last_call = ['','']
-    opts,args = M.parse_options(arg_s,'prxn:')
-    filename, lineno, is_temp = M._find_edit_target(ip, args, opts, last_call)
-        
-    if exp_filename is not None:
-        nt.assert_equal(exp_filename, filename)
-    if exp_contents is not None:
-        with io.open(filename, 'r') as f:
-            contents = f.read()
-        nt.assert_equal(exp_contents, contents)
-    if exp_lineno != -1:
-        nt.assert_equal(exp_lineno, lineno)
-    if exp_is_temp is not None:
-        nt.assert_equal(exp_is_temp, is_temp)
-
-
-def test_edit_interactive():
-    """%edit on interactively defined objects"""
-    ip = get_ipython()
-    n = ip.execution_count
-    ip.run_cell(u"def foo(): return 1", store_history=True)
-    
-    try:
-        _run_edit_test("foo")
-    except code.InteractivelyDefined as e:
-        nt.assert_equal(e.index, n)
-    else:
-        raise AssertionError("Should have raised InteractivelyDefined")
-
-
-def test_edit_cell():
-    """%edit [cell id]"""
-    ip = get_ipython()
-    
-    ip.run_cell(u"def foo(): return 1", store_history=True)
-    
-    # test
-    _run_edit_test("1", exp_contents=ip.user_ns['In'][1], exp_is_temp=True)

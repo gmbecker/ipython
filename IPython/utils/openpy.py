@@ -8,8 +8,8 @@ from __future__ import absolute_import
 
 import io
 from io import TextIOWrapper, BytesIO
-import os.path
 import re
+import urllib
 
 cookie_re = re.compile(ur"coding[:=]\s*([-\w.]+)", re.UNICODE)
 cookie_comment_re = re.compile(ur"^\s*#.*coding[:=]\s*([-\w.]+)", re.UNICODE)
@@ -205,8 +205,7 @@ def read_py_url(url, errors='replace', skip_encoding_cookie=True):
     -------
     A unicode string containing the contents of the file.
     """
-    from urllib import urlopen  # Deferred import for faster start
-    response = urlopen(url)
+    response = urllib.urlopen(url)
     buffer = io.BytesIO(response.read())
     return source_to_unicode(buffer, errors, skip_encoding_cookie)
 
@@ -218,22 +217,3 @@ def _list_readline(x):
     def readline():
         return next(x)
     return readline
-
-# Code for going between .py files and cached .pyc files ----------------------
-
-try:    # Python 3.2, see PEP 3147
-    from imp import source_from_cache, cache_from_source
-except ImportError:
-    # Python <= 3.1: .pyc files go next to .py
-    def source_from_cache(path):
-        basename, ext = os.path.splitext(path)
-        if ext not in ('.pyc', '.pyo'):
-            raise ValueError('Not a cached Python file extension', ext)
-        # Should we look for .pyw files?
-        return basename + '.py'
-    
-    def cache_from_source(path, debug_override=None):
-        if debug_override is None:
-            debug_override = __debug__
-        basename, ext = os.path.splitext(path)
-        return basename + '.pyc' if debug_override else '.pyo'
