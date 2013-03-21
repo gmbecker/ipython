@@ -1,0 +1,8 @@
+create IPython/frontend/html/notebook/static/js/taskcell.js (based on textcell.js)
+
+       Initial pass based TaskCell off of RawCell, which is a superclass of TextCell. 
+       TaskCell.prototype.fromJSON is the workhorse that actually populates the cell based on an existing notebook element. Initially it just dumps the json from the cells property (where the children live) into the cell.
+
+edit IPython/frontend/html/notebook/static/js/notebook.js to add check for "task" cell type in insert_cell_*
+
+edit IPython/frontend/html/notebook/templates/notebook.html to add script tag for taskcell.js

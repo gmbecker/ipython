@@ -570,6 +570,8 @@ var IPython = (function (IPython) {
                 cell = new IPython.HTMLCell();
             } else if (type === 'raw') {
                 cell = new IPython.RawCell();
+	    } else if (type === 'task') {
+                cell = new IPython.TaskCell();
             } else if (type === 'heading') {
                 cell = new IPython.HeadingCell();
             };
@@ -604,6 +606,8 @@ var IPython = (function (IPython) {
                 cell = new IPython.HTMLCell();
             } else if (type === 'raw') {
                 cell = new IPython.RawCell();
+	    } else if (type === 'task') {
+                cell = new IPython.TaskCell();
             } else if (type === 'heading') {
                 cell = new IPython.HeadingCell();
             };
@@ -718,6 +722,9 @@ var IPython = (function (IPython) {
         };
     };
 
+    Notebook.prototype.to_task = function(index, level){
+	alert("Notebook.prototype.to_task is being called. Time to figure out what it is doing!");
+    }
 
     Notebook.prototype.to_heading = function (index, level) {
         level = level || 1;
