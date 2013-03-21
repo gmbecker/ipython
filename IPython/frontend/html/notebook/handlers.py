@@ -294,10 +294,9 @@ class NamedNotebookHandler(AuthenticatedHandler):
         nbm = self.application.notebook_manager
         project = nbm.notebook_dir
         if not nbm.notebook_exists(notebook_id):
-            raise web.HTTPError(404, u'Notebook does not exist: %s' % notebook_id)       
-        template = self.application.jinja2_env.get_template('notebook.html')
-        self.write( template.render(
-            project=project,
+            raise web.HTTPError(404, u'Notebook does not exist: %s' % notebook_id)
+        self.render(
+            'notebook.html', project=project,
             notebook_id=notebook_id,
             base_project_url=self.application.ipython_app.base_project_url,
             base_kernel_url=self.application.ipython_app.base_kernel_url,
@@ -306,9 +305,10 @@ class NamedNotebookHandler(AuthenticatedHandler):
             logged_in=self.logged_in,
             login_available=self.login_available,
             mathjax_url=self.application.ipython_app.mathjax_url,
-            use_less=self.use_less
+            extra_javascript=self.application.ipython_app.extra_javascript,
+            extra_css=self.application.ipython_app.extra_css
+
             )
-        )
 
 
 class PrintNotebookHandler(AuthenticatedHandler):

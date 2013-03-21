@@ -18,7 +18,12 @@ window.mathjax_url = "{{mathjax_url}}";
 
 <link rel="stylesheet" href="{{ static_url("css/celltoolbar.css") }}" type="text/css" />
 
-{{super()}}
+{% for css in extra_css %}
+<link rel="stylesheet" href="{{ static_url(css) }}" type="text/css" />
+{% end %}
+
+{% end %}
+
 
 {% endblock %}
 
@@ -222,11 +227,14 @@ class="notebook_app"
 <script src="{{ static_url("js/notificationarea.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("js/tooltip.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("js/config.js") }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{ static_url("js/jsonhandlers.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("js/notebookmain.js") }}" type="text/javascript" charset="utf-8"></script>
 
 <script src="{{ static_url("js/contexthint.js") }}" charset="utf-8"></script>
 
-<script src="{{ static_url("js/celltoolbarpresets/default.js") }}" type="text/javascript" charset="utf-8"></script>
-<script src="{{ static_url("js/celltoolbarpresets/slideshow.js") }}" type="text/javascript" charset="utf-8"></script>
+{% for js in extra_javascript %}
+<script src="{{ static_url(js) }}" type="text/javascript" charset="utf-8"></script>
+{% end %}
 
-{% endblock %}
+{% end %}
+

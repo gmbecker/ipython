@@ -211,8 +211,16 @@ var IPython = (function (IPython) {
             json.latex = data['text/latex'];
         }
         if (data['application/json'] !== undefined) {
-            json.json = data['application/json'];
-        }
+            try {
+                var json_data = $.parseJSON(data['application/json']);
+            } catch(err) {
+                var json_data = undefined;
+            } 
+            if (json_data !== undefined) {
+                json.json = json_data;
+            }
+        };
+
         if (data['application/javascript'] !== undefined) {
             json.javascript = data['application/javascript'];
         }
@@ -254,8 +262,10 @@ var IPython = (function (IPython) {
         if (this.prompt_area) {
             toinsert.find('div.prompt').addClass('output_prompt').html('Out[' + n + ']:');
         }
-        this.append_mime_type(json, toinsert, dynamic);
+        // Put the output area in the DOM before calling the handlers. This is needed because
+        // some widgets will require that things be on the page first.
         this.element.append(toinsert);
+        this.append_mime_type(json, toinsert, dynamic);
         // If we just output latex, typeset it.
         if ((json.latex !== undefined) || (json.html !== undefined)) {
             this.typeset();
@@ -317,8 +327,10 @@ var IPython = (function (IPython) {
 
     OutputArea.prototype.append_display_data = function (json, dynamic) {
         var toinsert = this.create_output_area();
-        this.append_mime_type(json, toinsert, dynamic);
+        // Put the output area in the DOM before calling the handlers. This is needed because
+        // some widgets will require that things be on the page first.
         this.element.append(toinsert);
+        this.append_mime_type(json, toinsert, dynamic);
         // If we just output latex, typeset it.
         if ( (json.latex !== undefined) || (json.html !== undefined) ) {
             this.typeset();
@@ -328,19 +340,24 @@ var IPython = (function (IPython) {
     OutputArea.display_order = ['javascript','html','latex','svg','png','jpeg','text'];
 
     OutputArea.prototype.append_mime_type = function (json, element, dynamic) {
-        for(var type_i in OutputArea.display_order){
-            var type = OutputArea.display_order[type_i];
-            if(json[type] != undefined ){
-                if(type == 'javascript'){
-                    if (dynamic) {
-                        this.append_javascript(json.javascript, element, dynamic);
-                    }
-                } else {
-                    this['append_'+type](json[type], element);
-                }
-                return;
-            }
-        }
+        if (json.json !== undefined) {
+            this.append_json(json.json, element)
+        } else if (json.javascript !== undefined && dynamic) {
+            this.append_javascript(json.javascript, element, dynamic);
+        } else if (json.html !== undefined) {
+            this.append_html(json.html, element);
+        } else if (json.latex !== undefined) {
+            this.append_latex(json.latex, element);
+        } else if (json.svg !== undefined) {
+            this.append_svg(json.svg, element);
+        } else if (json.png !== undefined) {
+            this.append_png(json.png, element);
+        } else if (json.jpeg !== undefined) {
+            this.append_jpeg(json.jpeg, element);
+        } else if (json.text !== undefined) {
+            this.append_text(json.text, element);
+        };
+
     };
 
 
@@ -450,6 +467,15 @@ var IPython = (function (IPython) {
         element.append(toinsert);
     };
 
+
+    OutputArea.prototype.append_json = function (json, element) {
+        var toinsert = $("<div/>").addClass("box-flex1 output_subarea output_json");
+        element.append(toinsert);
+        var key = json.handler
+        if (key !== undefined) {
+            IPython.json_handlers.call_handler(key, json, toinsert)
+        };
+    };
 
     OutputArea.prototype.handle_clear_output = function (content) {
         this.clear_output(content.stdout, content.stderr, content.other);
