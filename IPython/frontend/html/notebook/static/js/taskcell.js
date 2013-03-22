@@ -172,11 +172,13 @@ var IPython = (function (IPython) {
 
    // TaskCell
 
-    var TaskCell = function () {
+    var TaskCell = function (kernel) {
         this.placeholder = "This is a Task cell";
         this.code_mirror_mode = 'rst';
         IPython.TextCell.apply(this, arguments);
         this.cell_type = 'task';
+	this.kernel = kernel || null;
+
         var that = this
 
         this.element.focusout(
@@ -196,6 +198,99 @@ var IPython = (function (IPython) {
         this.edit();
     };
 
+    //Cell indexing and lookup. lifted from notebook.js Notebook.prototype functions
+    TaskCell.prototype.get_cell_elements = function () {
+        return this.element.children("div.cell");
+    };
+
+
+    TaskCell.prototype.get_cell_element = function (index) {
+        var result = null;
+        var e = this.get_cell_elements().eq(index);
+        if (e.length !== 0) {
+            result = e;
+        }
+        return result;
+    };
+
+
+    // Kernel related calls.
+
+    //Note that this allows for nested tasks
+    TaskCell.prototype.set_kernel = function (kernel) {
+        this.kernel = kernel;
+	ncells = this.ncells();
+	for(var i=0; i<ncells; i++)
+	{
+	    var cell = this.get_cell(i);
+	    if (cell instanceof IPython.CodeCell || cell instanceof IPython.TaskCell) {
+                cell.set_kernel(this.kernel)
+	    };
+	};
+    }
+
+   TaskCell.prototype.get_cell = function (index) {
+        var result = null;
+        var ce = this.get_cell_element(index);
+        if (ce !== null) {
+            result = ce.data('cell');
+        }
+        return result;
+    }
+
+
+    TaskCell.prototype.ncells = function (cell) {
+        return this.get_cell_elements().length;
+    };
+
+   TaskCell.prototype.is_valid_cell_index = function (index) {
+       var max = this.ncells();
+        if (index !== null && index >= 0 && index < this.ncells()) {
+            return true;
+        } else {
+            return false;
+        };
+    }
+
+    TaskCell.prototype.get_selected_index = function () {
+        var result = null;
+        this.get_cell_elements().filter(function (index) {
+            if ($(this).data("cell").selected === true) {
+                result = index;
+            };
+        });
+        return result;
+    };
+
+
+  TaskCell.prototype.create_element = function () {
+        var cell = $("<div>").addClass('cell task_cell border-box-sizing');
+        cell.attr('tabindex','2');
+      cell.css({"background-color":"#99FFFF", "padding-left":"10px"});
+
+        var input_area = $('<div/>').addClass('task_cell_input border-box-sizing');
+
+/*        this.code_mirror = CodeMirror(input_area.get(0), {
+            indentUnit : 4,
+            mode: this.code_mirror_mode,
+            theme: 'default',
+            value: this.placeholder,
+            readOnly: this.read_only,
+            lineWrapping : true,
+            extraKeys: {"Tab": "indentMore","Shift-Tab" : "indentLess"},
+            onKeyEvent: $.proxy(this.handle_codemirror_keyevent,this)
+        });
+*/
+        // The tabindex=-1 makes this div focusable.
+      //var render_area = $('<div/>').addClass('task_cell_render border-box-sizing').addClass('rendered_html').attr('tabindex','-1');
+      var render_area = $('<div/>').addClass('task_cell_render border-box-sizing').addClass('rendered_html');
+
+      cell.append(input_area).append(render_area);
+
+      var end_task = $('<div/>').addClass('end_task').height("30%");
+      cell.append(end_task);
+      this.element = cell;
+    };
 
     TaskCell.prototype.handle_codemirror_keyevent = function (editor, event) {
         // This method gets called in CodeMirror's onKeyDown/onKeyPress
@@ -258,22 +353,75 @@ var IPython = (function (IPython) {
         this.code_mirror.refresh();
     };
 
+    TaskCell.prototype.append_cell = function(type){
+	//lifted from Notebook.prototype.instert_cell_below
+	var cell = null;
+        //if (this.ncells() === 0 || this.is_valid_cell_index(index)) {
+        if (type === 'code') {
+            cell = new IPython.CodeCell(this.kernel);
+            cell.set_input_prompt();
+        } else if (type === 'markdown') {
+            cell = new IPython.MarkdownCell();
+        } else if (type === 'html') {
+            cell = new IPython.HTMLCell();
+        } else if (type === 'raw') {
+            cell = new IPython.RawCell();
+	} else if (type === 'task') {
+            cell = new IPython.TaskCell();
+        } else if (type === 'heading') {
+            cell = new IPython.HeadingCell();
+        };
+        if (cell !== null) {
+          //   if (this.ncells() === 0) {
+		 this.element.find('div.end_task').before(cell.element);
+            // } else if (this.is_valid_cell_index(index)) {
+               //  this.get_cell_element(index).after(cell.element);
+             //};
+            cell.render();
+	    //            this.select(this.find_cell_index(cell));
+            this.dirty = true;
+            return cell;
+        };
+	// };
+        return cell;
+    }
+
 
     TaskCell.prototype.fromJSON = function (data) {
         IPython.Cell.prototype.fromJSON.apply(this, arguments);
         if (data.cell_type === this.cell_type) {
             if (data.cells !== undefined) {
+/*
                 this.set_text("A task cell.");//A task containing " + length(data.cells) + " cells");
                 // make this value the starting point, so that we can only undo
                 // to this state, instead of a blank cell
                 this.code_mirror.clearHistory();
-                this.set_rendered(data.rendered || '');
+*/
+		//lifted from notebook.js
+          var new_cells = data.cells;
+            ncells = new_cells.length;
+            var cell_data = null;
+            var new_cell = null;
+            for (i=0; i<ncells; i++) {
+                cell_data = new_cells[i];
+                // VERSIONHACK: plaintext -> raw
+                // handle never-released plaintext name for raw cells
+                if (cell_data.cell_type === 'plaintext'){
+                    cell_data.cell_type = 'raw';
+                }
+                
+                //new_cell = this.insert_cell_below(cell_data.cell_type,i);
+		new_cell = this.append_cell(cell_data.cell_type);
+                new_cell.fromJSON(cell_data);
+	    }
+              this.set_rendered(data.rendered || '');
                 this.rendered = false;
                 this.render();
             }
         }
     };
 
+    
 
     IPython.TaskCell = TaskCell;
     

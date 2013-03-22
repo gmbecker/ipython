@@ -571,7 +571,7 @@ var IPython = (function (IPython) {
             } else if (type === 'raw') {
                 cell = new IPython.RawCell();
 	    } else if (type === 'task') {
-                cell = new IPython.TaskCell();
+                cell = new IPython.TaskCell(this.kernel);
             } else if (type === 'heading') {
                 cell = new IPython.HeadingCell();
             };
@@ -607,7 +607,7 @@ var IPython = (function (IPython) {
             } else if (type === 'raw') {
                 cell = new IPython.RawCell();
 	    } else if (type === 'task') {
-                cell = new IPython.TaskCell();
+                cell = new IPython.TaskCell(this.kernel);
             } else if (type === 'heading') {
                 cell = new IPython.HeadingCell();
             };
@@ -998,7 +998,7 @@ var IPython = (function (IPython) {
         var ncells = this.ncells();
         for (var i=0; i<ncells; i++) {
             var cell = this.get_cell(i);
-            if (cell instanceof IPython.CodeCell) {
+            if (cell instanceof IPython.CodeCell || cell instanceof IPython.TaskCell) {
                 cell.set_kernel(this.kernel)
             };
         };

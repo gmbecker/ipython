@@ -3,6 +3,10 @@ create IPython/frontend/html/notebook/static/js/taskcell.js (based on textcell.j
        Initial pass based TaskCell off of RawCell, which is a superclass of TextCell. 
        TaskCell.prototype.fromJSON is the workhorse that actually populates the cell based on an existing notebook element. Initially it just dumps the json from the cells property (where the children live) into the cell.
 
+       Added set_kernel (modeled off of CodeCell) and Cell indexing/lookup (based on Notebook) to TaskCell prototype.
+
+       	    Need to make sure Notebook/TaskCell can see nested cells. I think that is why selection isn't working... 
+
 edit IPython/frontend/html/notebook/static/js/notebook.js to add check for "task" cell type in insert_cell_*
 
 edit IPython/frontend/html/notebook/templates/notebook.html to add script tag for taskcell.js
