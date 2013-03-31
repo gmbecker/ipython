@@ -167,8 +167,10 @@ var IPython = (function (IPython) {
                 this.set_rendered(data.rendered || '');
                 this.rendered = false;
                 this.render();
+
             }
         }
+	this.done_populating(); //added to deal with synchronicity issues
     };
 
 

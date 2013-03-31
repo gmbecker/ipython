@@ -28,13 +28,17 @@ var IPython = (function (IPython) {
             this.bind_events();
         }
         this.cell_id = utils.uuid();
+	this.populated = false; //for dealing with synchronocity issues when loading notebooks with nested cells
     };
 
+    Cell.prototype.done_populating = function() {
+	this.populated = true;
+    };
 
     // Subclasses must implement create_element.
     Cell.prototype.create_element = function () {};
 
-
+   
     Cell.prototype.bind_events = function () {
         var that = this;
         // We trigger events so that Cell doesn't have to depend on Notebook.
@@ -42,11 +46,15 @@ var IPython = (function (IPython) {
             if (that.selected === false) {
                 $([IPython.events]).trigger('select.Cell', {'cell':that});
             }
+	    //we don't want to also select the parents in nested cells!
+	    event.stopPropagation();
         });
         that.element.focusin(function (event) {
             if (that.selected === false) {
                 $([IPython.events]).trigger('select.Cell', {'cell':that});
             }
+	    //we don't want to also select the parents in nested cells!
+	    event.stopPropagation();
         });
     };
 

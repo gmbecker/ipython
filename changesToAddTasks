@@ -10,3 +10,5 @@ create IPython/frontend/html/notebook/static/js/taskcell.js (based on textcell.j
 edit IPython/frontend/html/notebook/static/js/notebook.js to add check for "task" cell type in insert_cell_*
 
 edit IPython/frontend/html/notebook/templates/notebook.html to add script tag for taskcell.js
+
+edited all "select.Cell" event handlers (notebook.js and cell.js) to add event.stopPropagation(). This prevents parents of nested cells from also being selected.

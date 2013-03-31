@@ -320,7 +320,8 @@ var IPython = (function (IPython) {
                     this.expand();
                 };
             };
-        };
+	};
+	this.done_populating(); //added to deal with synchronicity issues
     };
 
 

@@ -78,6 +78,8 @@ var IPython = (function (IPython) {
         $([IPython.events]).on('select.Cell', function (event, data) {
             var index = that.find_cell_index(data.cell);
             that.select(index);
+	    //don't want to also select parent in nested cells
+	    event.stopPropagation();
         });
 
 
@@ -328,7 +330,10 @@ var IPython = (function (IPython) {
     // Cell indexing, retrieval, etc.
 
     Notebook.prototype.get_cell_elements = function () {
-        return this.element.children("div.cell");
+        //return this.element.children("div.cell");
+	//nested cells are allowed so we need all descendants of class div.cell, not just direct children
+	return this.element.find("div.cell");
+	
     };
 
 
@@ -1112,6 +1117,24 @@ var IPython = (function (IPython) {
             ncells = new_cells.length;
             var cell_data = null;
             var new_cell = null;
+	    
+	    var new_cell_objs = new Array(ncells);
+	    for(i =0; i < ncells; i++)
+	    {
+		cell_data = new_cells[i];
+                // VERSIONHACK: plaintext -> raw
+                // handle never-released plaintext name for raw cells
+                if (cell_data.cell_type === 'plaintext'){
+                    cell_data.cell_type = 'raw';
+                }
+		new_cell_objs[i] = this.insert_cell_below(cell_data.cell_type);
+	    }
+	    for(j=0; j< ncells; j++)
+	    {
+		new_cell_objs[j].fromJSON(new_cells[j]);
+	    }
+	    
+	/*	
             for (i=0; i<ncells; i++) {
                 cell_data = new_cells[i];
                 // VERSIONHACK: plaintext -> raw
@@ -1122,8 +1145,9 @@ var IPython = (function (IPython) {
                 
                 new_cell = this.insert_cell_below(cell_data.cell_type);
                 new_cell.fromJSON(cell_data);
-            };
-        };
+		};
+	*/	
+	};
         if (data.worksheets.length > 1) {
             var dialog = $('<div/>');
             dialog.html("This notebook has " + data.worksheets.length + " worksheets, " +
