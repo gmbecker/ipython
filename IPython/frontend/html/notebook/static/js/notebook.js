@@ -1003,7 +1003,8 @@ var IPython = (function (IPython) {
         var ncells = this.ncells();
         for (var i=0; i<ncells; i++) {
             var cell = this.get_cell(i);
-            if (cell instanceof IPython.CodeCell || cell instanceof IPython.TaskCell) {
+            //if (cell instanceof IPython.CodeCell || cell instanceof IPython.TaskCell) {
+	    if (cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell) {
                 cell.set_kernel(this.kernel)
             };
         };
@@ -1041,7 +1042,7 @@ var IPython = (function (IPython) {
         var that = this;
         var cell = that.get_selected_cell();
         var cell_index = that.find_cell_index(cell);
-        if (cell instanceof IPython.CodeCell) {
+        if (cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell) {
             cell.execute();
         } else if (cell instanceof IPython.HTMLCell) {
             cell.render();
