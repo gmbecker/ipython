@@ -577,6 +577,10 @@ var IPython = (function (IPython) {
                 cell = new IPython.RawCell();
 	    } else if (type === 'task') {
                 cell = new IPython.TaskCell(this.kernel);
+	    } else if (type === 'altset') {
+		cell = new IPython.AltSetCell();
+	    } else if (type === 'alt') {
+		cell = new IPython.AltCell();
             } else if (type === 'heading') {
                 cell = new IPython.HeadingCell();
             };
