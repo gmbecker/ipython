@@ -451,7 +451,16 @@ var IPython = (function (IPython) {
     };
 
 
-    
+    AltSetCell.prototype.fromJSON = function(data)
+    {
+	//populate the normal way and then edit the style of the elements so that they show up side by side
+	IPython.ContainerCell.prototype.fromJSON.apply(this, arguments);
+	
+	var child_cells = this.element.children("div.alt_cell");
+	var widths = 100/child_cells.length + "%";
+	child_cells.css({"width":widths});
+    };	
+
     IPython.AltSetCell = AltSetCell;
 
     var AltCell = function(kernel)
