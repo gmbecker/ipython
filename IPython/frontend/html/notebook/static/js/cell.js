@@ -79,12 +79,14 @@ var IPython = (function (IPython) {
         that.element.click(function (event) {
             if (that.selected === false) {
                 $([IPython.events]).trigger('select.Cell', {'cell':that});
-            }
+	    }
+	    event.stopPropagation();
         });
         that.element.focusin(function (event) {
             if (that.selected === false) {
                 $([IPython.events]).trigger('select.Cell', {'cell':that});
             }
+	    event.stopPropagation();
         });
     };
 
