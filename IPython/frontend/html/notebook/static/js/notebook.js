@@ -730,11 +730,11 @@ var IPython = (function (IPython) {
             } else if (type === 'raw') {
                 cell = new IPython.RawCell();
 	    } else if (type === 'task') {
-		cell = new IPython.TaskCell();
+		cell = new IPython.TaskCell(this.kernel);
 	    } else if (type === 'altset') {
-		cell = new IPython.AltSetCell();
+		cell = new IPython.AltSetCell(this.kernel);
 	    } else if (type === 'alt') {
-		cell = new IPython.AltCell();
+		cell = new IPython.AltCell(this.kernel);
             } else if (type === 'heading') {
                 cell = new IPython.HeadingCell();
             }
