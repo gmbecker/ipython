@@ -723,6 +723,9 @@ var IPython = (function (IPython) {
             if (type === 'code') {
                 cell = new IPython.CodeCell(this.kernel);
                 cell.set_input_prompt();
+	    } else if (type === 'interactivecode') {
+                cell = new IPython.IntCodeCell(this.kernel);
+                cell.set_input_prompt();
             } else if (type === 'markdown') {
                 cell = new IPython.MarkdownCell();
             } else if (type === 'html') {
@@ -766,17 +769,21 @@ var IPython = (function (IPython) {
 
         var ncells = this.ncells();
 
-        if (ncells === 0) {
+        //if (ncells === 0) {
+	//If index===ncells it now uses places the element before div.endspace, instead of after index-1. 
+	//This allows a workaround that prevents problems with indexing/insertion in nonlinear documents 
+	if (ncells === 0 || ncells === index) {
             // special case append if empty
             this.element.find('div.end_space').before(element);
         } else if ( ncells === index ) {
-            // special case append it the end, but not empty
+	    //XXX superceded by above. Why did they have this as a special extra case?
+            // special case append it the end, but not empty 
             this.get_cell_element(index-1).after(element);
         } else if (this.is_valid_cell_index(index)) {
             // otherwise always somewhere to append to
             this.get_cell_element(index).before(element);
         } else {
-            return false;
+	    return false;
         }
 
         if (this.undelete_index !== null && index <= this.undelete_index) {
@@ -1548,7 +1555,10 @@ var IPython = (function (IPython) {
                     cell_data.cell_type = 'raw';
                 }
 
-                new_cell = this.insert_cell_below(cell_data.cell_type);
+                //new_cell = this.insert_cell_below(cell_data.cell_type);
+		//workaround to make sure things always end up at the end
+		//This is necessary because new_cell.fromJSON can now add more than one cell to the notebook
+		new_cell = this.insert_cell_at_index(cell_data.cell_type, this.ncells());
                 new_cell.fromJSON(cell_data);
             };
         };

@@ -39,7 +39,7 @@ var IPython = (function (IPython) {
 	for(var i=0; i<ncells; i++)
 	{
 	    var cell = this.get_cell(i);
-	    if (cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell) {
+	    if (cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell || cell instanceof IPython.IntCodeCell) {
                 cell.set_kernel(this.kernel)
 	    };
 	};
@@ -168,6 +168,9 @@ var IPython = (function (IPython) {
         //if (this.ncells() === 0 || this.is_valid_cell_index(index)) {
         if (type === 'code') {
             cell = new IPython.CodeCell(this.kernel);
+            cell.set_input_prompt();
+	} else if (type === 'interactivecode') {
+            cell = new IPython.IntCodeCell(this.kernel);
             cell.set_input_prompt();
         } else if (type === 'markdown') {
             cell = new IPython.MarkdownCell();
@@ -356,7 +359,7 @@ var IPython = (function (IPython) {
 	for(var i=0; i<ncells; i++)
 	{
 	    cell = this.get_cell(i);
-	    if( cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell)
+	    if( cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell || cell instanceof IPython.IntCodeCell)
 		cell.execute();
 	}
     };
@@ -527,7 +530,7 @@ var IPython = (function (IPython) {
 	for(var i=0; i<ncells; i++)
 	{
 	    cell = this.get_cell(i);
-	    if( cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell)
+	    if( cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell || cell instanceof IPython.IntCodeCell)
 		cell.execute();
 	}
     };
