@@ -416,13 +416,15 @@ var IPython = (function (IPython) {
      * @return {jQuery} A selector of all cell elements
      */
     Notebook.prototype.get_cell_elements = function () {
+/*
 <<<<<<< HEAD:IPython/frontend/html/notebook/static/js/notebook.js
         //return this.element.children("div.cell");
 	return this.element.find("div.cell");
 	
 =======
+*/
         return this.container.children("div.cell");
->>>>>>> e72b752b53ea460bf672bd4290bc2e359c67b334:IPython/frontend/html/notebook/static/notebook/js/notebook.js
+//>>>>>>> e72b752b53ea460bf672bd4290bc2e359c67b334:IPython/frontend/html/notebook/static/notebook/js/notebook.js
     };
 
     /**
