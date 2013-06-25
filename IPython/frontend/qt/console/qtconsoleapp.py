@@ -20,11 +20,9 @@ Authors:
 #-----------------------------------------------------------------------------
 
 # stdlib imports
-import json
 import os
 import signal
 import sys
-import uuid
 
 # If run on Windows, install an exception hook which pops up a
 # message box. Pythonw.exe hides the console, so without this
@@ -59,21 +57,17 @@ from IPython.external.qt import QtCore, QtGui
 from IPython.config.application import boolean_flag, catch_config_error
 from IPython.core.application import BaseIPythonApplication
 from IPython.core.profiledir import ProfileDir
-from IPython.frontend.qt.console.frontend_widget import FrontendWidget
 from IPython.frontend.qt.console.ipython_widget import IPythonWidget
 from IPython.frontend.qt.console.rich_ipython_widget import RichIPythonWidget
 from IPython.frontend.qt.console import styles
 from IPython.frontend.qt.console.mainwindow import MainWindow
-from IPython.frontend.qt.kernelmanager import QtKernelManager
+from IPython.frontend.qt.client import QtKernelClient
+from IPython.frontend.qt.manager import QtKernelManager
 from IPython.kernel import tunnel_to_kernel, find_connection_file
-from IPython.utils.path import filefind
-from IPython.utils.py3compat import str_to_bytes
 from IPython.utils.traitlets import (
-    Dict, List, Unicode, Integer, CaselessStrEnum, CBool, Any
+    Dict, List, Unicode, CBool, Any
 )
-from IPython.kernel.zmq.kernelapp import IPKernelApp
-from IPython.kernel.zmq.session import Session, default_secure
-from IPython.kernel.zmq.zmqshell import ZMQInteractiveShell
+from IPython.kernel.zmq.session import default_secure
 
 from IPython.frontend.consoleapp import (
         IPythonConsoleApp, app_aliases, app_flags, flags, aliases
@@ -166,10 +160,17 @@ class IPythonQtConsoleApp(BaseIPythonApplication, IPythonConsoleApp):
     aliases = Dict(aliases)
     frontend_flags = Any(qt_flags)
     frontend_aliases = Any(qt_aliases)
+    kernel_client_class = QtKernelClient
     kernel_manager_class = QtKernelManager
 
     stylesheet = Unicode('', config=True,
         help="path to a custom CSS stylesheet")
+
+    hide_menubar = CBool(False, config=True,
+        help="Start the console window with the menu bar hidden.")
+
+    maximize = CBool(False, config=True,
+        help="Start the console window maximized.")
 
     plain = CBool(False, config=True,
         help="Use a plaintext widget instead of rich text (plain can't print/save).")
@@ -196,16 +197,20 @@ class IPythonQtConsoleApp(BaseIPythonApplication, IPythonConsoleApp):
         kernel_manager = self.kernel_manager_class(
                                 connection_file=self._new_connection_file(),
                                 config=self.config,
+                                autorestart=True,
         )
         # start the kernel
         kwargs = dict()
         kwargs['extra_arguments'] = self.kernel_argv
         kernel_manager.start_kernel(**kwargs)
-        kernel_manager.start_channels()
+        kernel_manager.client_factory = self.kernel_client_class
+        kernel_client = kernel_manager.client()
+        kernel_client.start_channels(shell=True, iopub=True)
         widget = self.widget_factory(config=self.config,
                                    local_kernel=True)
         self.init_colors(widget)
         widget.kernel_manager = kernel_manager
+        widget.kernel_client = kernel_client
         widget._existing = False
         widget._may_close = True
         widget._confirm_exit = self.confirm_exit
@@ -219,24 +224,28 @@ class IPythonQtConsoleApp(BaseIPythonApplication, IPythonConsoleApp):
         current_widget : IPythonWidget
             The IPythonWidget whose kernel this frontend is to share
         """
-        kernel_manager = self.kernel_manager_class(
-                                connection_file=current_widget.kernel_manager.connection_file,
+        kernel_client = self.kernel_client_class(
+                                connection_file=current_widget.kernel_client.connection_file,
                                 config = self.config,
         )
-        kernel_manager.load_connection_file()
-        kernel_manager.start_channels()
+        kernel_client.load_connection_file()
+        kernel_client.start_channels()
         widget = self.widget_factory(config=self.config,
                                 local_kernel=False)
         self.init_colors(widget)
         widget._existing = True
         widget._may_close = False
         widget._confirm_exit = False
-        widget.kernel_manager = kernel_manager
+        widget.kernel_client = kernel_client
+        widget.kernel_manager = current_widget.kernel_manager
         return widget
+
+    def init_qt_app(self):
+        # separate from qt_elements, because it must run first
+        self.app = QtGui.QApplication([])
 
     def init_qt_elements(self):
         # Create the widget.
-        self.app = QtGui.QApplication([])
 
         base_path = os.path.abspath(os.path.dirname(__file__))
         icon_path = os.path.join(base_path, 'resources', 'icon', 'IPythonConsole.svg')
@@ -256,6 +265,7 @@ class IPythonQtConsoleApp(BaseIPythonApplication, IPythonConsoleApp):
         self.widget._confirm_exit = self.confirm_exit
 
         self.widget.kernel_manager = self.kernel_manager
+        self.widget.kernel_client = self.kernel_client
         self.window = MainWindow(self.app,
                                 confirm_exit=self.confirm_exit,
                                 new_frontend_factory=self.new_frontend_master,
@@ -264,6 +274,10 @@ class IPythonQtConsoleApp(BaseIPythonApplication, IPythonConsoleApp):
         self.window.log = self.log
         self.window.add_tab_with_frontend(self.widget)
         self.window.init_menu_bar()
+
+        # Ignore on OSX, where there is always a menu bar
+        if sys.platform != 'darwin' and self.hide_menubar:
+            self.window.menuBar().setVisible(False)
 
         self.window.setWindowTitle('IPython')
 
@@ -342,6 +356,7 @@ class IPythonQtConsoleApp(BaseIPythonApplication, IPythonConsoleApp):
 
     @catch_config_error
     def initialize(self, argv=None):
+        self.init_qt_app()
         super(IPythonQtConsoleApp, self).initialize(argv)
         IPythonConsoleApp.initialize(self,argv)
         self.init_qt_elements()
@@ -350,7 +365,10 @@ class IPythonQtConsoleApp(BaseIPythonApplication, IPythonConsoleApp):
     def start(self):
 
         # draw the window
-        self.window.show()
+        if self.maximize:
+            self.window.showMaximized()
+        else:
+            self.window.show()
         self.window.raise_()
 
         # Start the application main loop.

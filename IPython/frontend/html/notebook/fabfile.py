@@ -5,22 +5,26 @@ from fabric.utils import abort
 import os
 
 static_dir = 'static'
-components_dir = os.path.join(static_dir,'components')
+components_dir = os.path.join(static_dir, 'components')
 
-def test_component(name):
-    if not os.path.exists(os.path.join(components_dir,name)):
-        abort('cannot continue without component {}.'.format(name))
-
-
-def css(minify=True):
+def css(minify=True, verbose=False):
     """generate the css from less files"""
-    test_component('bootstrap')
-    test_component('less.js')
-    if minify not in ['True','False',True,False]:
-        abort('need to get Boolean')
-    minify = (minify in ['True',True])
+    source = os.path.join('style', 'style.less')
+    target = os.path.join('style', 'style.min.css')
+    _compile_less(source, target, minify, verbose)
 
-    min_flag= '-x' if minify is True else ''
+def _to_bool(b):
+    if not b in ['True', 'False', True, False]:
+        abort('boolean expected, got: %s' % b)
+    return (b in ['True', True])
+
+def _compile_less(source, target, minify=True, verbose=False):
+    """Complie a less file by source and target relative to static_dir"""
+    minify = _to_bool(minify)
+    verbose = _to_bool(verbose)
+    min_flag = '-x' if minify is True else ''
+    ver_flag = '--verbose' if verbose is True else ''
+    lessc = os.path.join('components', 'less.js', 'bin', 'lessc')
     with lcd(static_dir):
-        local('lessc {min_flag} less/style.less css/style.min.css'.format(min_flag=min_flag))
+        local('{lessc} {min_flag} {ver_flag} {source} {target}'.format(**locals()))
 

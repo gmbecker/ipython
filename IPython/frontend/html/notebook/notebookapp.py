@@ -6,7 +6,7 @@ Authors:
 * Brian Granger
 """
 #-----------------------------------------------------------------------------
-#  Copyright (C) 2008-2011  The IPython Development Team
+#  Copyright (C) 2013  The IPython Development Team
 #
 #  Distributed under the terms of the BSD License.  The full license is in
 #  the file COPYING, distributed as part of this software.
@@ -21,7 +21,6 @@ import errno
 import logging
 import os
 import random
-import re
 import select
 import signal
 import socket
@@ -31,7 +30,12 @@ import time
 import uuid
 import webbrowser
 
+
 # Third party
+# check for pyzmq 2.1.11
+from IPython.utils.zmqrelated import check_for_zmq
+check_for_zmq('2.1.11', 'IPython.frontend.html.notebook')
+
 import zmq
 from jinja2 import Environment, FileSystemLoader
 
@@ -40,53 +44,56 @@ from jinja2 import Environment, FileSystemLoader
 from zmq.eventloop import ioloop
 ioloop.install()
 
+# check for tornado 2.1.0
+msg = "The IPython Notebook requires tornado >= 2.1.0"
+try:
+    import tornado
+except ImportError:
+    raise ImportError(msg)
+try:
+    version_info = tornado.version_info
+except AttributeError:
+    raise ImportError(msg + ", but you have < 1.1.0")
+if version_info < (2,1,0):
+    raise ImportError(msg + ", but you have %s" % tornado.version)
+
 from tornado import httpserver
 from tornado import web
 
 # Our own libraries
-from .kernelmanager import MappingKernelManager
-from .handlers import (LoginHandler, LogoutHandler,
-    ProjectDashboardHandler, NewHandler, NamedNotebookHandler,
-    MainKernelHandler, KernelHandler, KernelActionHandler, IOPubHandler,
-    ShellHandler, NotebookRootHandler, NotebookHandler, NotebookCopyHandler,
-    RSTHandler, AuthenticatedFileHandler, PrintNotebookHandler,
-    MainClusterHandler, ClusterProfileHandler, ClusterActionHandler,
-    FileFindHandler,
-)
-from .nbmanager import NotebookManager
-from .filenbmanager import FileNotebookManager
-from .clustermanager import ClusterManager
+from IPython.frontend.html.notebook import DEFAULT_STATIC_FILES_PATH
+
+from .services.kernels.kernelmanager import MappingKernelManager
+from .services.notebooks.nbmanager import NotebookManager
+from .services.notebooks.filenbmanager import FileNotebookManager
+from .services.clusters.clustermanager import ClusterManager
+
+from .base.handlers import AuthenticatedFileHandler, FileFindHandler
 
 from IPython.config.application import catch_config_error, boolean_flag
 from IPython.core.application import BaseIPythonApplication
-from IPython.core.profiledir import ProfileDir
 from IPython.frontend.consoleapp import IPythonConsoleApp
 from IPython.kernel import swallow_argv
-from IPython.kernel.zmq.session import Session, default_secure
-from IPython.kernel.zmq.zmqshell import ZMQInteractiveShell
+from IPython.kernel.zmq.session import default_secure
 from IPython.kernel.zmq.kernelapp import (
     kernel_flags,
     kernel_aliases,
-    IPKernelApp
 )
 from IPython.utils.importstring import import_item
 from IPython.utils.localinterfaces import LOCALHOST
+from IPython.utils import submodule
 from IPython.utils.traitlets import (
-    Dict, Unicode, Integer, List, Enum, Bool,
+    Dict, Unicode, Integer, List, Bool, Bytes,
     DottedObjectName
 )
 from IPython.utils import py3compat
 from IPython.utils.path import filefind
 
+from .utils import url_path_join
+
 #-----------------------------------------------------------------------------
 # Module globals
 #-----------------------------------------------------------------------------
-
-_kernel_id_regex = r"(?P<kernel_id>\w+-\w+-\w+-\w+-\w+)"
-_kernel_action_regex = r"(?P<action>restart|interrupt)"
-_notebook_id_regex = r"(?P<notebook_id>\w+-\w+-\w+-\w+-\w+)"
-_profile_regex = r"(?P<profile>[^\/]+)" # there is almost no text that is invalid
-_cluster_action_regex = r"(?P<action>start|stop)"
 
 _examples = """
 ipython notebook                       # start the notebook
@@ -96,18 +103,9 @@ ipython notebook --certfile=mycert.pem # use SSL/TLS certificate
 ipython notebook --port=5555 --ip=*    # Listen on port 5555, all interfaces
 """
 
-# Packagers: modify this line if you store the notebook static files elsewhere
-DEFAULT_STATIC_FILES_PATH = os.path.join(os.path.dirname(__file__), "static")
-
 #-----------------------------------------------------------------------------
 # Helper functions
 #-----------------------------------------------------------------------------
-
-def url_path_join(a,b):
-    if a.endswith('/') and b.startswith('/'):
-        return a[:-1]+b
-    else:
-        return a+b
 
 def random_ports(port, n):
     """Generate a list of n random ports near the given port.
@@ -120,6 +118,12 @@ def random_ports(port, n):
     for i in range(n-5):
         yield port + random.randint(-2*n, 2*n)
 
+def load_handlers(name):
+    """Load the (URL pattern, handler) tuples for each component."""
+    name = 'IPython.frontend.html.notebook.' + name
+    mod = __import__(name, fromlist=['default_handlers'])
+    return mod.default_handlers
+
 #-----------------------------------------------------------------------------
 # The Tornado web application
 #-----------------------------------------------------------------------------
@@ -129,28 +133,17 @@ class NotebookWebApplication(web.Application):
     def __init__(self, ipython_app, kernel_manager, notebook_manager,
                  cluster_manager, log,
                  base_project_url, settings_overrides):
-        handlers = [
-            (r"/", ProjectDashboardHandler),
-            (r"/login", LoginHandler),
-            (r"/logout", LogoutHandler),
-            (r"/new", NewHandler),
-            (r"/%s" % _notebook_id_regex, NamedNotebookHandler),
-            (r"/%s/copy" % _notebook_id_regex, NotebookCopyHandler),
-            (r"/%s/print" % _notebook_id_regex, PrintNotebookHandler),
-            (r"/kernels", MainKernelHandler),
-            (r"/kernels/%s" % _kernel_id_regex, KernelHandler),
-            (r"/kernels/%s/%s" % (_kernel_id_regex, _kernel_action_regex), KernelActionHandler),
-            (r"/kernels/%s/iopub" % _kernel_id_regex, IOPubHandler),
-            (r"/kernels/%s/shell" % _kernel_id_regex, ShellHandler),
-            (r"/notebooks", NotebookRootHandler),
-            (r"/notebooks/%s" % _notebook_id_regex, NotebookHandler),
-            (r"/rstservice/render", RSTHandler),
-            (r"/files/(.*)", AuthenticatedFileHandler, {'path' : notebook_manager.notebook_dir}),
-            (r"/clusters", MainClusterHandler),
-            (r"/clusters/%s/%s" % (_profile_regex, _cluster_action_regex), ClusterActionHandler),
-            (r"/clusters/%s" % _profile_regex, ClusterProfileHandler),
-        ]
 
+        settings = self.init_settings(
+            ipython_app, kernel_manager, notebook_manager, cluster_manager,
+            log, base_project_url, settings_overrides)
+        handlers = self.init_handlers(settings)
+
+        super(NotebookWebApplication, self).__init__(handlers, **settings)
+
+    def init_settings(self, ipython_app, kernel_manager, notebook_manager,
+                      cluster_manager, log,
+                      base_project_url, settings_overrides):
         # Python < 2.6.5 doesn't accept unicode keys in f(**kwargs), and
         # base_project_url will always be unicode, which will in turn
         # make the patterns unicode, and ultimately result in unicode
@@ -160,38 +153,60 @@ class NotebookWebApplication(web.Application):
         # Note that the URLs these patterns check against are escaped,
         # and thus guaranteed to be ASCII: 'héllo' is really 'h%C3%A9llo'.
         base_project_url = py3compat.unicode_to_str(base_project_url, 'ascii')
-        
+        template_path = os.path.join(os.path.dirname(__file__), "templates")
         settings = dict(
-            template_path=os.path.join(os.path.dirname(__file__), "templates"),
+            # basics
+            base_project_url=base_project_url,
+            base_kernel_url=ipython_app.base_kernel_url,
+            template_path=template_path,
             static_path=ipython_app.static_file_path,
             static_handler_class = FileFindHandler,
             static_url_prefix = url_path_join(base_project_url,'/static/'),
-            cookie_secret=os.urandom(1024),
+            
+            # authentication
+            cookie_secret=ipython_app.cookie_secret,
             login_url=url_path_join(base_project_url,'/login'),
-            cookie_name='username-%s' % uuid.uuid4(),
+            read_only=ipython_app.read_only,
+            password=ipython_app.password,
+            
+            # managers
+            kernel_manager=kernel_manager,
+            notebook_manager=notebook_manager,
+            cluster_manager=cluster_manager,
+            
+            # IPython stuff
+            mathjax_url=ipython_app.mathjax_url,
+            max_msg_size=ipython_app.max_msg_size,
+            config=ipython_app.config,
+            use_less=ipython_app.use_less,
+            jinja2_env=Environment(loader=FileSystemLoader(template_path)),
         )
 
         # allow custom overrides for the tornado web app.
         settings.update(settings_overrides)
+        return settings
 
+    def init_handlers(self, settings):
+        # Load the (URL pattern, handler) tuples for each component.
+        handlers = []
+        handlers.extend(load_handlers('base.handlers'))
+        handlers.extend(load_handlers('tree.handlers'))
+        handlers.extend(load_handlers('auth.login'))
+        handlers.extend(load_handlers('auth.logout'))
+        handlers.extend(load_handlers('notebook.handlers'))
+        handlers.extend(load_handlers('services.kernels.handlers'))
+        handlers.extend(load_handlers('services.notebooks.handlers'))
+        handlers.extend(load_handlers('services.clusters.handlers'))
+        handlers.extend([
+            (r"/files/(.*)", AuthenticatedFileHandler, {'path' : settings['notebook_manager'].notebook_dir}),
+        ])
         # prepend base_project_url onto the patterns that we match
         new_handlers = []
         for handler in handlers:
-            pattern = url_path_join(base_project_url, handler[0])
-            new_handler = tuple([pattern]+list(handler[1:]))
-            new_handlers.append( new_handler )
-
-        super(NotebookWebApplication, self).__init__(new_handlers, **settings)
-
-        self.kernel_manager = kernel_manager
-        self.notebook_manager = notebook_manager
-        self.cluster_manager = cluster_manager
-        self.ipython_app = ipython_app
-        self.read_only = self.ipython_app.read_only
-        self.config = self.ipython_app.config
-        self.use_less = self.ipython_app.use_less
-        self.log = log
-        self.jinja2_env = Environment(loader=FileSystemLoader(os.path.join(os.path.dirname(__file__), "templates")))
+            pattern = url_path_join(settings['base_project_url'], handler[0])
+            new_handler = tuple([pattern] + list(handler[1:]))
+            new_handlers.append(new_handler)
+        return new_handlers
 
 
 
@@ -282,10 +297,17 @@ class NotebookApp(BaseIPythonApplication):
 
     kernel_argv = List(Unicode)
 
-    log_level = Enum((0,10,20,30,40,50,'DEBUG','INFO','WARN','ERROR','CRITICAL'),
-                    default_value=logging.INFO,
-                    config=True,
-                    help="Set the log level by value or name.")
+    max_msg_size = Integer(65536, config=True, help="""
+        The max raw message size accepted from the browser
+        over a WebSocket connection.
+    """)
+
+    def _log_level_default(self):
+        return logging.INFO
+
+    def _log_format_default(self):
+        """override default log format to include time"""
+        return u"%(asctime)s.%(msecs).03d [%(name)s]%(highlevel)s %(message)s"
 
     # create requested profiles by default, if they don't exist:
     auto_create = Bool(True)
@@ -316,6 +338,18 @@ class NotebookApp(BaseIPythonApplication):
     keyfile = Unicode(u'', config=True, 
         help="""The full path to a private key file for usage with SSL/TLS."""
     )
+    
+    cookie_secret = Bytes(b'', config=True,
+        help="""The random bytes used to secure cookies.
+        By default this is a new random number every time you start the Notebook.
+        Set it to a value in a config file to enable logins to persist across server sessions.
+        
+        Note: Cookie secrets should be kept private, do not share config files with
+        cookie_secret stored in plaintext (you can read the value from a file).
+        """
+    )
+    def _cookie_secret_default(self):
+        return os.urandom(1024)
 
     password = Unicode(u'', config=True,
                       help="""Hashed password to use for web authentication.
@@ -403,8 +437,12 @@ class NotebookApp(BaseIPythonApplication):
         elif not new.endswith('/'):
             self.base_kernel_url = new+'/'
 
-    websocket_host = Unicode("", config=True,
-        help="""The hostname for the websocket server."""
+    websocket_url = Unicode("", config=True,
+        help="""The base URL for the websocket server,
+        if it differs from the HTTP server (hint: it almost certainly doesn't).
+        
+        Should be in the form of an HTTP origin: ws[s]://hostname[:port]
+        """
     )
 
     extra_static_paths = List(Unicode, config=True,
@@ -452,9 +490,14 @@ class NotebookApp(BaseIPythonApplication):
         else:
             self.log.info("Using MathJax: %s", new)
 
-    notebook_manager_class = DottedObjectName('IPython.frontend.html.notebook.filenbmanager.FileNotebookManager',
+    notebook_manager_class = DottedObjectName('IPython.frontend.html.notebook.services.notebooks.filenbmanager.FileNotebookManager',
         config=True,
         help='The notebook manager class to use.')
+
+    trust_xheaders = Bool(False, config=True,
+        help=("Whether to trust or not X-Scheme/X-Forwarded-Proto and X-Real-Ip/X-Forwarded-For headers"
+              "sent by the upstream reverse proxy. Neccesary if the proxy handles SSL")
+    )
 
     def parse_command_line(self, argv=None):
         super(NotebookApp, self).parse_command_line(argv)
@@ -493,6 +536,10 @@ class NotebookApp(BaseIPythonApplication):
         # self.log is a child of. The logging module dipatches log messages to a log
         # and all of its ancenstors until propagate is set to False.
         self.log.propagate = False
+        
+        # hook up tornado 3's loggers to our app handlers
+        for name in ('access', 'application', 'general'):
+            logging.getLogger('tornado.%s' % name).handlers = self.log.handlers
     
     def init_webapp(self):
         """initialize tornado webapp and httpserver"""
@@ -508,20 +555,45 @@ class NotebookApp(BaseIPythonApplication):
         else:
             ssl_options = None
         self.web_app.password = self.password
-        self.http_server = httpserver.HTTPServer(self.web_app, ssl_options=ssl_options)
+        self.http_server = httpserver.HTTPServer(self.web_app, ssl_options=ssl_options,
+                                                 xheaders=self.trust_xheaders)
         if not self.ip:
             warning = "WARNING: The notebook server is listening on all IP addresses"
             if ssl_options is None:
-                self.log.critical(warning + " and not using encryption. This"
+                self.log.critical(warning + " and not using encryption. This "
                     "is not recommended.")
             if not self.password and not self.read_only:
-                self.log.critical(warning + "and not using authentication."
+                self.log.critical(warning + " and not using authentication. "
                     "This is highly insecure and not recommended.")
         success = None
         for port in random_ports(self.port, self.port_retries+1):
             try:
                 self.http_server.listen(port, self.ip)
             except socket.error as e:
+                # XXX: remove the e.errno == -9 block when we require
+                # tornado >= 3.0
+                if e.errno == -9 and tornado.version_info[0] < 3:
+                    # The flags passed to socket.getaddrinfo from
+                    # tornado.netutils.bind_sockets can cause "gaierror:
+                    # [Errno -9] Address family for hostname not supported"
+                    # when the interface is not associated, for example.
+                    # Changing the flags to exclude socket.AI_ADDRCONFIG does
+                    # not cause this error, but the only way to do this is to
+                    # monkeypatch socket to remove the AI_ADDRCONFIG attribute
+                    saved_AI_ADDRCONFIG = socket.AI_ADDRCONFIG
+                    self.log.warn('Monkeypatching socket to fix tornado bug')
+                    del(socket.AI_ADDRCONFIG)
+                    try:
+                        # retry the tornado call without AI_ADDRCONFIG flags
+                        self.http_server.listen(port, self.ip)
+                    except socket.error as e2:
+                        e = e2
+                    else:
+                        self.port = port
+                        success = True
+                        break
+                    # restore the monekypatch
+                    socket.AI_ADDRCONFIG = saved_AI_ADDRCONFIG
                 if e.errno != errno.EADDRINUSE:
                     raise
                 self.log.info('The port %i is already in use, trying another random port.' % port)
@@ -535,19 +607,7 @@ class NotebookApp(BaseIPythonApplication):
             self.exit(1)
     
     def init_signal(self):
-        # FIXME: remove this check when pyzmq dependency is >= 2.1.11
-        # safely extract zmq version info:
-        try:
-            zmq_v = zmq.pyzmq_version_info()
-        except AttributeError:
-            zmq_v = [ int(n) for n in re.findall(r'\d+', zmq.__version__) ]
-            if 'dev' in zmq.__version__:
-                zmq_v.append(999)
-            zmq_v = tuple(zmq_v)
-        if zmq_v >= (2,1,9) and not sys.platform.startswith('win'):
-            # This won't work with 2.1.7 and
-            # 2.1.9-10 will log ugly 'Interrupted system call' messages,
-            # but it will work
+        if not sys.platform.startswith('win'):
             signal.signal(signal.SIGINT, self._handle_sigint)
         signal.signal(signal.SIGTERM, self._signal_stop)
         if hasattr(signal, 'SIGUSR1'):
@@ -609,11 +669,23 @@ class NotebookApp(BaseIPythonApplication):
     def _signal_info(self, sig, frame):
         print self.notebook_info()
     
+    def init_components(self):
+        """Check the components submodule, and warn if it's unclean"""
+        status = submodule.check_submodule_status()
+        if status == 'missing':
+            self.log.warn("components submodule missing, running `git submodule update`")
+            submodule.update_submodules(submodule.ipython_parent())
+        elif status == 'unclean':
+            self.log.warn("components submodule unclean, you may see 404s on static/components")
+            self.log.warn("run `setup.py submodule` or `git submodule update` to update")
+            
+    
     @catch_config_error
     def initialize(self, argv=None):
         self.init_logging()
         super(NotebookApp, self).initialize(argv)
         self.init_configurables()
+        self.init_components()
         self.init_webapp()
         self.init_signal()
 
@@ -632,7 +704,7 @@ class NotebookApp(BaseIPythonApplication):
         return mgr_info +"The IPython Notebook is running at: %s" % self._url
 
     def start(self):
-        """ Start the IPython Notebok server app, after initialization
+        """ Start the IPython Notebook server app, after initialization
         
         This method takes no arguments so all configuration and initialization
         must be done prior to calling this method."""

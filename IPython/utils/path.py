@@ -244,6 +244,24 @@ def get_xdg_dir():
     return None
 
 
+def get_xdg_cache_dir():
+    """Return the XDG_CACHE_HOME, if it is defined and exists, else None.
+
+    This is only for non-OS X posix (Linux,Unix,etc.) systems.
+    """
+
+    env = os.environ
+
+    if os.name == 'posix' and sys.platform != 'darwin':
+        # Linux, Unix, AIX, etc.
+        # use ~/.cache if empty OR not set
+        xdg = env.get("XDG_CACHE_HOME", None) or os.path.join(get_home_dir(), '.cache')
+        if xdg and _writable_dir(xdg):
+            return py3compat.cast_unicode(xdg, fs_encoding)
+
+    return None
+
+
 def get_ipython_dir():
     """Get the IPython directory for this platform and user.
 
@@ -290,12 +308,26 @@ def get_ipython_dir():
                         " using a temp directory."%ipdir)
         ipdir = tempfile.mkdtemp()
     elif not os.path.exists(ipdir):
-        parent = ipdir.rsplit(os.path.sep, 1)[0]
+        parent = os.path.dirname(ipdir)
         if not _writable_dir(parent):
             # ipdir does not exist and parent isn't writable
             warnings.warn("IPython parent '%s' is not a writable location,"
                         " using a temp directory."%parent)
             ipdir = tempfile.mkdtemp()
+
+    return py3compat.cast_unicode(ipdir, fs_encoding)
+
+
+def get_ipython_cache_dir():
+    """Get the cache directory it is created if it does not exist."""
+    xdgdir = get_xdg_cache_dir()
+    if xdgdir is None:
+        return get_ipython_dir()
+    ipdir = os.path.join(xdgdir, "ipython")
+    if not os.path.exists(ipdir) and _writable_dir(xdgdir):
+        os.makedirs(ipdir)
+    elif not _writable_dir(xdgdir):
+        return get_ipython_dir()
 
     return py3compat.cast_unicode(ipdir, fs_encoding)
 

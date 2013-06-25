@@ -37,7 +37,8 @@ class InProcessKernel(Kernel):
 
     # The frontends connected to this kernel.
     frontends = List(
-        Instance('IPython.kernel.inprocess.kernelmanager.InProcessKernelManager'))
+        Instance('IPython.kernel.inprocess.client.InProcessKernelClient')
+    )
 
     # The GUI environment that the kernel is running under. This need not be
     # specified for the normal operation for the kernel, but is required for
@@ -140,11 +141,11 @@ class InProcessKernel(Kernel):
 
     def _stdout_default(self):
         from IPython.kernel.zmq.iostream import OutStream
-        return OutStream(self.session, self.iopub_socket, u'stdout')
+        return OutStream(self.session, self.iopub_socket, u'stdout', pipe=False)
 
     def _stderr_default(self):
         from IPython.kernel.zmq.iostream import OutStream
-        return OutStream(self.session, self.iopub_socket, u'stderr')
+        return OutStream(self.session, self.iopub_socket, u'stderr', pipe=False)
 
 #-----------------------------------------------------------------------------
 # Interactive shell subclass

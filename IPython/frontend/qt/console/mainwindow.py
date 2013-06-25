@@ -20,14 +20,16 @@ Authors:
 #-----------------------------------------------------------------------------
 
 # stdlib imports
-import sys
+import json
 import re
+import sys
 import webbrowser
-import ast
 from threading import Thread
 
 # System library imports
 from IPython.external.qt import QtGui,QtCore
+
+from IPython.core.magic import magic_escapes
 
 def background(f):
     """call a function in a simple thread, to prevent blocking"""
@@ -176,6 +178,7 @@ class MainWindow(QtGui.QMainWindow):
                     self.update_tab_bar_visibility()
                     return
 
+        kernel_client = closing_widget.kernel_client
         kernel_manager = closing_widget.kernel_manager
 
         if keepkernel is None and not closing_widget._confirm_exit:
@@ -183,7 +186,7 @@ class MainWindow(QtGui.QMainWindow):
             # or leave it alone if we don't
             keepkernel = closing_widget._existing
         if keepkernel is None: #show prompt
-            if kernel_manager and kernel_manager.channels_running:
+            if kernel_client and kernel_client.channels_running:
                 title = self.window().windowTitle()
                 cancel = QtGui.QMessageBox.Cancel
                 okay = QtGui.QMessageBox.Ok
@@ -209,17 +212,17 @@ class MainWindow(QtGui.QMainWindow):
                     reply = box.exec_()
                     if reply == 1: # close All
                         for slave in slave_tabs:
-                            background(slave.kernel_manager.stop_channels)
+                            background(slave.kernel_client.stop_channels)
                             self.tab_widget.removeTab(self.tab_widget.indexOf(slave))
                         closing_widget.execute("exit")
                         self.tab_widget.removeTab(current_tab)
-                        background(kernel_manager.stop_channels)
+                        background(kernel_client.stop_channels)
                     elif reply == 0: # close Console
                         if not closing_widget._existing:
                             # Have kernel: don't quit, just close the tab
                             closing_widget.execute("exit True")
                         self.tab_widget.removeTab(current_tab)
-                        background(kernel_manager.stop_channels)
+                        background(kernel_client.stop_channels)
                 else:
                     reply = QtGui.QMessageBox.question(self, title,
                         "Are you sure you want to close this Console?"+
@@ -231,15 +234,16 @@ class MainWindow(QtGui.QMainWindow):
                         self.tab_widget.removeTab(current_tab)
         elif keepkernel: #close console but leave kernel running (no prompt)
             self.tab_widget.removeTab(current_tab)
-            background(kernel_manager.stop_channels)
+            background(kernel_client.stop_channels)
         else: #close console and kernel (no prompt)
             self.tab_widget.removeTab(current_tab)
-            if kernel_manager and kernel_manager.channels_running:
+            if kernel_client and kernel_client.channels_running:
                 for slave in slave_tabs:
-                    background(slave.kernel_manager.stop_channels)
+                    background(slave.kernel_client.stop_channels)
                     self.tab_widget.removeTab(self.tab_widget.indexOf(slave))
-                kernel_manager.shutdown_kernel()
-                background(kernel_manager.stop_channels)
+                if kernel_manager:
+                    kernel_manager.shutdown_kernel()
+                background(kernel_client.stop_channels)
         
         self.update_tab_bar_visibility()
 
@@ -284,7 +288,7 @@ class MainWindow(QtGui.QMainWindow):
         #convert from/to int/richIpythonWidget if needed
         if isinstance(tab, int):
             tab = self.tab_widget.widget(tab)
-        km=tab.kernel_manager
+        km=tab.kernel_client
 
         #build list of all widgets
         widget_list = [self.tab_widget.widget(i) for i in range(self.tab_widget.count())]
@@ -292,7 +296,7 @@ class MainWindow(QtGui.QMainWindow):
         # widget that are candidate to be the owner of the kernel does have all the same port of the curent widget
         # And should have a _may_close attribute
         filtered_widget_list = [ widget for widget in widget_list if
-                                widget.kernel_manager.connection_file == km.connection_file and
+                                widget.kernel_client.connection_file == km.connection_file and
                                 hasattr(widget,'_may_close') ]
         # the master widget is the one that may close the kernel
         master_widget= [ widget for widget in filtered_widget_list if widget._may_close]
@@ -315,14 +319,14 @@ class MainWindow(QtGui.QMainWindow):
         #convert from/to int/richIpythonWidget if needed
         if isinstance(tab, int):
             tab = self.tab_widget.widget(tab)
-        km=tab.kernel_manager
+        km=tab.kernel_client
 
         #build list of all widgets
         widget_list = [self.tab_widget.widget(i) for i in range(self.tab_widget.count())]
 
         # widget that are candidate not to be the owner of the kernel does have all the same port of the curent widget
         filtered_widget_list = ( widget for widget in widget_list if
-                                widget.kernel_manager.connection_file == km.connection_file)
+                                widget.kernel_client.connection_file == km.connection_file)
         # Get a list of all widget owning the same kernel and removed it from
         # the previous cadidate. (better using sets ?)
         master_widget_list = self.find_master_tab(tab, as_list=True)
@@ -613,43 +617,42 @@ class MainWindow(QtGui.QMainWindow):
         inner_dynamic_magic.__name__ = "dynamics_magic_s"
         return inner_dynamic_magic
 
-    def populate_all_magic_menu(self, listofmagic=None):
-        """Clean "All Magics..." menu and repopulate it with `listofmagic`
+    def populate_all_magic_menu(self, display_data=None):
+        """Clean "All Magics..." menu and repopulate it with `display_data`
 
         Parameters
         ----------
-        listofmagic : string,
-            repr() of a list of strings, send back by the kernel
+        display_data : dict,
+            dict of display_data for the magics dict of a MagicsManager.
+            Expects json data, as the result of %lsmagic
 
-        Notes
-        -----
-        `listofmagic`is a repr() of list because it is fed with the result of
-        a 'user_expression'
         """
         for k,v in self._magic_menu_dict.items():
             v.clear()
         self.all_magic_menu.clear()
-
-
-        mlist=ast.literal_eval(listofmagic)
-        for magic in mlist:
-            cell = (magic['type'] == 'cell')
-            name = magic['name']
-            mclass = magic['class']
-            if cell :
-                prefix='%%'
-            else :
-                prefix='%'
-            magic_menu = self._get_magic_menu(mclass)
-
-            pmagic = '%s%s'%(prefix,name)
-
-            xaction = QtGui.QAction(pmagic,
-                self,
-                triggered=self._make_dynamic_magic(pmagic)
-                )
-            magic_menu.addAction(xaction)
-            self.all_magic_menu.addAction(xaction)
+        
+        if not display_data:
+            return
+        
+        if display_data['status'] != 'ok':
+            self.log.warn("%%lsmagic user-expression failed: %s" % display_data)
+            return
+        
+        mdict = json.loads(display_data['data'].get('application/json', {}))
+        
+        for mtype in sorted(mdict):
+            subdict = mdict[mtype]
+            prefix = magic_escapes[mtype]
+            for name in sorted(subdict):
+                mclass = subdict[name]
+                magic_menu = self._get_magic_menu(mclass)
+                pmagic = prefix + name
+                xaction = QtGui.QAction(pmagic,
+                    self,
+                    triggered=self._make_dynamic_magic(pmagic)
+                    )
+                magic_menu.addAction(xaction)
+                self.all_magic_menu.addAction(xaction)
 
     def update_all_magic_menu(self):
         """ Update the list of magics in the "All Magics..." Menu
@@ -658,7 +661,7 @@ class MainWindow(QtGui.QMainWindow):
         menu with the list received back
 
         """
-        self.active_frontend._silent_exec_callback('get_ipython().magics_manager.lsmagic_info()',
+        self.active_frontend._silent_exec_callback('get_ipython().magic("lsmagic")',
                 self.populate_all_magic_menu)
 
     def _get_magic_menu(self,menuidentifier, menulabel=None):

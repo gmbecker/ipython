@@ -224,7 +224,7 @@ class HistoryConsoleWidget(ConsoleWidget):
         return self._history[-n:]
 
     def _request_update_session_history_length(self):
-        msg_id = self.kernel_manager.shell_channel.execute('',
+        msg_id = self.kernel_client.shell_channel.execute('',
             silent=True,
             user_expressions={
                 'hlen':'len(get_ipython().history_manager.input_hist_raw)',
@@ -241,7 +241,9 @@ class HistoryConsoleWidget(ConsoleWidget):
             content = msg['content']
             status = content['status']
             if status == 'ok':
-                self._max_session_history=(int(content['user_expressions']['hlen']))
+                self._max_session_history = int(
+                    content['user_expressions']['hlen']['data']['text/plain']
+                )
 
     def save_magic(self):
         # update the session history length

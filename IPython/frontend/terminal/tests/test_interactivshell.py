@@ -171,13 +171,14 @@ class InteractiveShellTestCase(unittest.TestCase):
         expected = [ py3compat.unicode_to_str(e, enc) for e in expected ]
         self.assertEqual(hist, expected)
     
+class TerminalMagicsTestCase(unittest.TestCase):
     def test_paste_magics_message(self):
         """Test that an IndentationError while using paste magics doesn't
         trigger a message about paste magics and also the opposite."""
 
         ip = get_ipython()
-        s = ''' sum([1, 2,
-3, 4])'''
+        s = ('for a in range(5):\n'
+             'print(a)')
 
         tm = ip.magics_manager.registry['TerminalMagics']
         with tt.AssertPrints("If you want to paste code into IPython, try the "
@@ -187,3 +188,16 @@ class InteractiveShellTestCase(unittest.TestCase):
         with tt.AssertNotPrints("If you want to paste code into IPython, try the "
                 "%paste and %cpaste magic functions."):
             tm.store_or_execute(s, name=None)
+
+    def test_paste_magics_blankline(self):
+        """Test that code with a blank line doesn't get split (gh-3246)."""
+        ip = get_ipython()
+        s = ('def pasted_func(a):\n'
+             '    b = a+1\n'
+             '\n'
+             '    return b')
+        
+        tm = ip.magics_manager.registry['TerminalMagics']
+        tm.store_or_execute(s, name=None)
+        
+        self.assertEqual(ip.user_ns['pasted_func'](54), 55)

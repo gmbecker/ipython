@@ -34,6 +34,7 @@ from IPython.core.error import UsageError
 from IPython.core.magics import MacroToEdit, CodeMagics
 from IPython.core.magic import magics_class, line_magic, Magics
 from IPython.core.payloadpage import install_payload_page
+from IPython.display import display, Javascript
 from IPython.kernel.inprocess.socket import SocketABC
 from IPython.kernel import (
     get_connection_file, get_connection_info, connect_qtconsole
@@ -150,18 +151,18 @@ class KernelMagics(Magics):
         # save a few values we'll need to recover later
         mode = save_dstore('mode', False)
         save_dstore('rc_pprint', ptformatter.pprint)
-        save_dstore('rc_plain_text_only',disp_formatter.plain_text_only)
+        save_dstore('rc_active_types',disp_formatter.active_types)
         save_dstore('xmode', shell.InteractiveTB.mode)
 
         if mode == False:
             # turn on
             ptformatter.pprint = False
-            disp_formatter.plain_text_only = True
+            disp_formatter.active_types = ['text/plain']
             shell.magic('xmode Plain')
         else:
             # turn off
             ptformatter.pprint = dstore.rc_pprint
-            disp_formatter.plain_text_only = dstore.rc_plain_text_only
+            disp_formatter.active_types = dstore.rc_active_types
             shell.magic("xmode " + dstore.xmode)
 
         # Store new mode and inform on console
@@ -444,27 +445,32 @@ class KernelMagics(Magics):
         except Exception as e:
             error("Could not start qtconsole: %r" % e)
             return
-
-def safe_unicode(e):
-    """unicode(e) with various fallbacks. Used for exceptions, which may not be
-    safe to call unicode() on.
-    """
-    try:
-        return unicode(e)
-    except UnicodeError:
-        pass
-
-    try:
-        return py3compat.str_to_unicode(str(e))
-    except UnicodeError:
-        pass
-
-    try:
-        return py3compat.str_to_unicode(repr(e))
-    except UnicodeError:
-        pass
-
-    return u'Unrecoverably corrupt evalue'
+    
+    @line_magic
+    def autosave(self, arg_s):
+        """Set the autosave interval in the notebook (in seconds).
+        
+        The default value is 120, or two minutes.
+        ``%autosave 0`` will disable autosave.
+        
+        This magic only has an effect when called from the notebook interface.
+        It has no effect when called in a startup file.
+        """
+        
+        try:
+            interval = int(arg_s)
+        except ValueError:
+            raise UsageError("%%autosave requires an integer, got %r" % arg_s)
+        
+        # javascript wants milliseconds
+        milliseconds = 1000 * interval
+        display(Javascript("IPython.notebook.set_autosave_interval(%i)" % milliseconds),
+            include=['application/javascript']
+        )
+        if interval:
+            print("Autosaving every %i seconds" % interval)
+        else:
+            print("Autosave disabled")
 
 
 class ZMQInteractiveShell(InteractiveShell):
@@ -545,7 +551,7 @@ class ZMQInteractiveShell(InteractiveShell):
         exc_content = {
             u'traceback' : stb,
             u'ename' : unicode(etype.__name__),
-            u'evalue' : safe_unicode(evalue)
+            u'evalue' : py3compat.safe_unicode(evalue),
         }
 
         dh = self.displayhook

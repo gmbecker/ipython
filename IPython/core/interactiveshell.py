@@ -64,7 +64,6 @@ from IPython.utils import io
 from IPython.utils import py3compat
 from IPython.utils import openpy
 from IPython.utils.decorators import undoc
-from IPython.utils.doctestreload import doctest_reload
 from IPython.utils.io import ask_yes_no
 from IPython.utils.ipstruct import Struct
 from IPython.utils.path import get_home_dir, get_ipython_dir, get_py_filename, unquote_filename
@@ -284,10 +283,16 @@ class InteractiveShell(SingletonConfigurable):
     filename = Unicode("<ipython console>")
     ipython_dir= Unicode('', config=True) # Set to get_ipython_dir() in __init__
 
-    # Input splitter, to split entire cells of input into either individual
-    # interactive statements or whole blocks.
+    # Input splitter, to transform input line by line and detect when a block
+    # is ready to be executed.
     input_splitter = Instance('IPython.core.inputsplitter.IPythonInputSplitter',
-                              (), {})
+                              (), {'line_input_checker': True})
+    
+    # This InputSplitter instance is used to transform completed cells before
+    # running them. It allows cell magics to contain blank lines.
+    input_transformer_manager = Instance('IPython.core.inputsplitter.IPythonInputSplitter',
+                                         (), {'line_input_checker': False})
+    
     logstart = CBool(False, config=True, help=
         """
         Start logging to the default log file.
@@ -416,11 +421,11 @@ class InteractiveShell(SingletonConfigurable):
 
     def __init__(self, config=None, ipython_dir=None, profile_dir=None,
                  user_module=None, user_ns=None,
-                 custom_exceptions=((), None)):
+                 custom_exceptions=((), None), **kwargs):
 
         # This is where traits with a config_key argument are updated
         # from the values on config.
-        super(InteractiveShell, self).__init__(config=config)
+        super(InteractiveShell, self).__init__(config=config, **kwargs)
         self.configurables = [self]
 
         # These are relatively independent and stateless
@@ -489,7 +494,6 @@ class InteractiveShell(SingletonConfigurable):
         self.init_display_pub()
         self.init_data_pub()
         self.init_displayhook()
-        self.init_reload_doctest()
         self.init_latextool()
         self.init_magics()
         self.init_logstart()
@@ -681,14 +685,6 @@ class InteractiveShell(SingletonConfigurable):
         # This is a context manager that installs/revmoes the displayhook at
         # the appropriate time.
         self.display_trap = DisplayTrap(hook=self.displayhook)
-
-    def init_reload_doctest(self):
-        # Do a proper resetting of doctest, including the necessary displayhook
-        # monkeypatching
-        try:
-            doctest_reload()
-        except ImportError:
-            warn("doctest module does not exist.")
 
     def init_latextool(self):
         """Configure LaTeXTool."""
@@ -2059,11 +2055,14 @@ class InteractiveShell(SingletonConfigurable):
 
         # Register Magic Aliases
         mman = self.magics_manager
+        # FIXME: magic aliases should be defined by the Magics classes
+        # or in MagicsManager, not here
         mman.register_alias('ed', 'edit')
         mman.register_alias('hist', 'history')
         mman.register_alias('rep', 'recall')
         mman.register_alias('SVG', 'svg', 'cell')
         mman.register_alias('HTML', 'html', 'cell')
+        mman.register_alias('file', 'writefile', 'cell')
 
         # FIXME: Move the color initialization to the DisplayHook, which
         # should be split into a prompt manager and displayhook. We probably
@@ -2121,13 +2120,15 @@ class InteractiveShell(SingletonConfigurable):
         fn = self.find_cell_magic(magic_name)
         if fn is None:
             lm = self.find_line_magic(magic_name)
-            etpl = "Cell magic function `%%{0}` not found{1}."
+            etpl = "Cell magic `%%{0}` not found{1}."
             extra = '' if lm is None else (' (But line magic `%{0}` exists, '
                             'did you mean that instead?)'.format(magic_name))
             error(etpl.format(magic_name, extra))
         elif cell == '':
-            raise UsageError('%%{0} (with double %) expects code beneath it. '
-                            'Did you mean %{0} (single %)?'.format(magic_name))
+            message = '%%{0} is a cell magic, but the cell body is empty.'.format(magic_name)
+            if self.find_line_magic(magic_name) is not None:
+                message += ' Did you mean the line magic %{0} (single %)?'.format(magic_name)
+            raise UsageError(message)
         else:
             # Note: this is the distance in the stack to the user's frame.
             # This will need to be updated if the internal calling logic gets
@@ -2362,10 +2363,38 @@ class InteractiveShell(SingletonConfigurable):
     # Things related to extracting values/expressions from kernel and user_ns
     #-------------------------------------------------------------------------
 
-    def _simple_error(self):
-        etype, value = sys.exc_info()[:2]
-        return u'[ERROR] {e.__name__}: {v}'.format(e=etype, v=value)
+    def _user_obj_error(self):
+        """return simple exception dict
+        
+        for use in user_variables / expressions
+        """
+        
+        etype, evalue, tb = self._get_exc_info()
+        stb = self.InteractiveTB.get_exception_only(etype, evalue)
+        
+        exc_info = {
+            u'status' : 'error',
+            u'traceback' : stb,
+            u'ename' : unicode(etype.__name__),
+            u'evalue' : py3compat.safe_unicode(evalue),
+        }
 
+        return exc_info
+    
+    def _format_user_obj(self, obj):
+        """format a user object to display dict
+        
+        for use in user_expressions / variables
+        """
+        
+        data, md = self.display_formatter.format(obj)
+        value = {
+            'status' : 'ok',
+            'data' : data,
+            'metadata' : md,
+        }
+        return value
+    
     def user_variables(self, names):
         """Get a list of variable names from the user's namespace.
 
@@ -2376,15 +2405,17 @@ class InteractiveShell(SingletonConfigurable):
 
         Returns
         -------
-        A dict, keyed by the input names and with the repr() of each value.
+        A dict, keyed by the input names and with the rich mime-type repr(s) of each value.
+        Each element will be a sub-dict of the same form as a display_data message.
         """
         out = {}
         user_ns = self.user_ns
+        
         for varname in names:
             try:
-                value = repr(user_ns[varname])
+                value = self._format_user_obj(user_ns[varname])
             except:
-                value = self._simple_error()
+                value = self._user_obj_error()
             out[varname] = value
         return out
 
@@ -2400,17 +2431,18 @@ class InteractiveShell(SingletonConfigurable):
 
         Returns
         -------
-        A dict, keyed like the input expressions dict, with the repr() of each
-        value.
+        A dict, keyed like the input expressions dict, with the rich mime-typed
+        display_data of each value.
         """
         out = {}
         user_ns = self.user_ns
         global_ns = self.user_global_ns
+        
         for key, expr in expressions.iteritems():
             try:
-                value = repr(eval(expr, global_ns, user_ns))
+                value = self._format_user_obj(eval(expr, global_ns, user_ns))
             except:
-                value = self._simple_error()
+                value = self._user_obj_error()
             out[key] = value
         return out
 
@@ -2589,17 +2621,9 @@ class InteractiveShell(SingletonConfigurable):
         if silent:
             store_history = False
 
-        self.input_splitter.push(raw_cell)
+        self.input_transformer_manager.push(raw_cell)
+        cell = self.input_transformer_manager.source_reset()
 
-        # Check for cell magics, which leave state behind.  This interface is
-        # ugly, we need to do something cleaner later...  Now the logic is
-        # simply that the input_splitter remembers if there was a cell magic,
-        # and in that case we grab the cell body.
-        if self.input_splitter.cell_magic_parts:
-            self._current_cell_magic_body = \
-                               ''.join(self.input_splitter.cell_magic_parts)
-        cell = self.input_splitter.source_reset()
-        
         # Our own compiler remembers the __future__ environment. If we want to
         # run code with a separate __future__ environment, use the default
         # compiler
@@ -3025,6 +3049,8 @@ class InteractiveShell(SingletonConfigurable):
                         with io_open(tgt,'r', encoding='latin1') as f :
                             return f.read()
                     raise ValueError(("'%s' seem to be unreadable.") % target)
+            elif os.path.isdir(os.path.expanduser(tgt)):
+                raise ValueError("'%s' is a directory, not a regular file." % target)
 
         try:                                              # User namespace
             codeobj = eval(target, self.user_ns)

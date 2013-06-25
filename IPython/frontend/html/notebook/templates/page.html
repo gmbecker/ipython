@@ -10,21 +10,28 @@
     <meta charset="utf-8">
 
     <title>{% block title %}IPython Notebook{% endblock %}</title>
+    <link rel="shortcut icon" type="image/x-icon" href="{{static_url("base/images/favicon.ico") }}">
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
-    <link rel="stylesheet" href="{{static_url("jquery/css/themes/base/jquery-ui.min.css") }}" type="text/css" />
-    <link rel="stylesheet" href="{{static_url("css/boilerplate.css") }}" type="text/css" />
-    <link rel="stylesheet" href="{{static_url("css/page.css") }}" type="text/css"/>
+    <link rel="stylesheet" href="{{static_url("components/jquery-ui/themes/smoothness/jquery-ui.min.css") }}" type="text/css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <link rel="stylesheet" href="{{static_url("base/css/boilerplate.css") }}" type="text/css" />
     {% block stylesheet %}
     {% block lesscss %}
-        {% if use_less %}
-            <link rel="stylesheet/less" href="{{ static_url("less/style.less") }}" type="text/css" />
-        {% else %}
-            <link rel="stylesheet" href="{{ static_url("css/style.min.css") }}" type="text/css"/>
-        {% endif %}
-    {% endblock lesscss%}
+	    {% if use_less %}
+	        <link rel="stylesheet/less" href="{{ static_url("style/style.less") }}" type="text/css" />
+	    {% else %}
+	        <link rel="stylesheet" href="{{ static_url("style/style.min.css") }}" type="text/css"/>
+	    {% endif %}
     {% endblock %}
-    <link rel="stylesheet" href="{{ static_url("css/custom.css") }}" type="text/css" />
-
+    {% endblock %}
+    <link rel="stylesheet" href="{{ static_url("custom/custom.css") }}" type="text/css" />
+    <script src="{{static_url("components/requirejs/require.js") }}" type="text/javascript" charset="utf-8"></script>
+    <script>
+      require.config({
+          baseUrl: '{{static_url() }}',
+      });
+    </script>
 
     {% block meta %}
     {% endblock %}
@@ -33,8 +40,17 @@
 
 <body {% block params %}{% endblock %}>
 
-<div id="header">
-    <span id="ipython_notebook"><div><a href="{{base_project_url}}" alt='dashboard'><img src='{{static_url("ipynblogo.png") }}' alt='IPython Notebook'/></a></div></span>
+<noscript>
+    <div id='noscript'>
+      IPython Notebook requires JavaScript.<br>
+      Please enable it to proceed.
+  </div>
+</noscript>
+
+<div id="header" class="navbar navbar-static-top">
+  <div class="navbar-inner navbar-nobg">
+    <div class="container">
+    <div id="ipython_notebook" class="nav brand pull-left"><a href="{{base_project_url}}" alt='dashboard'><img src='{{static_url("base/images/ipynblogo.png") }}' alt='IPython Notebook'/></a></div>
 
     {% block login_widget %}
 
@@ -50,6 +66,8 @@
 
     {% block header %}
     {% endblock %}
+    </div>
+  </div>
 </div>
 
 <div id="site">
@@ -57,11 +75,12 @@
 {% endblock %}
 </div>
 
-<script src="{{static_url("jquery/js/jquery-1.7.1.min.js") }}" type="text/javascript" charset="utf-8"></script>
-<script src="{{static_url("jquery/js/jquery-ui.min.js") }}" type="text/javascript" charset="utf-8"></script>
-<script src="{{static_url("js/namespace.js") }}" type="text/javascript" charset="utf-8"></script>
-<script src="{{static_url("js/page.js") }}" type="text/javascript" charset="utf-8"></script>
-<script src="{{static_url("js/loginwidget.js") }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{static_url("components/jquery/jquery.min.js") }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{static_url("components/jquery-ui/ui/minified/jquery-ui.min.js") }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{static_url("components/bootstrap/bootstrap/js/bootstrap.min.js") }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{static_url("base/js/namespace.js") }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{static_url("base/js/page.js") }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{static_url("auth/js/loginwidget.js") }}" type="text/javascript" charset="utf-8"></script>
 
 {% block script %}
     {% if use_less %}
@@ -69,7 +88,7 @@
     {% endif %}
 {% endblock %}
 
-<script src="{{static_url("js/custom.js") }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{static_url("custom/custom.js") }}" type="text/javascript" charset="utf-8"></script>
 
 </body>
 

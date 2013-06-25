@@ -275,6 +275,9 @@ class Kernel(Configurable):
 
         for s in self.shell_streams:
             s.on_recv(make_dispatcher(s), copy=False)
+
+        # publish idle status
+        self._publish_status('starting')
     
     def do_one_iteration(self):
         """step eventloop just once"""
@@ -743,7 +746,16 @@ class Kernel(Configurable):
         # Flush output before making the request.
         sys.stderr.flush()
         sys.stdout.flush()
-
+        # flush the stdin socket, to purge stale replies
+        while True:
+            try:
+                self.stdin_socket.recv_multipart(zmq.NOBLOCK)
+            except zmq.ZMQError as e:
+                if e.errno == zmq.EAGAIN:
+                    break
+                else:
+                    raise
+        
         # Send the input request.
         content = json_clean(dict(prompt=prompt))
         self.session.send(self.stdin_socket, u'input_request', content, parent,

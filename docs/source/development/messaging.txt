@@ -171,8 +171,9 @@ Message type: ``execute_request``::
     # is forced to be False.
     'store_history' : bool,
 
-    # A list of variable names from the user's namespace to be retrieved.  What
-    # returns is a JSON string of the variable's repr(), not a python object.
+    # A list of variable names from the user's namespace to be retrieved.
+    # What returns is a rich representation of each variable (dict keyed by name).
+    # See the display_data content for the structure of the representation data.
     'user_variables' : list,
 
     # Similarly, a dict mapping names to expressions to be evaluated in the
@@ -195,7 +196,7 @@ The ``user_`` fields deserve a detailed explanation.  In the past, IPython had
 the notion of a prompt string that allowed arbitrary code to be evaluated, and
 this was put to good use by many in creating prompts that displayed system
 status, path information, and even more esoteric uses like remote instrument
-status aqcuired over the network.  But now that IPython has a clean separation
+status acquired over the network.  But now that IPython has a clean separation
 between the kernel and the clients, the kernel has no prompt knowledge; prompts
 are a frontend-side feature, and it should be even possible for different
 frontends to display different prompts while interacting with the same kernel.
@@ -808,12 +809,29 @@ Message type: ``display_data``::
 
         # The data dict contains key/value pairs, where the kids are MIME
         # types and the values are the raw data of the representation in that
-        # format. The data dict must minimally contain the ``text/plain``
-        # MIME type which is used as a backup representation.
+        # format.
         'data' : dict,
 
         # Any metadata that describes the data
         'metadata' : dict
+    }
+
+
+The ``metadata`` contains any metadata that describes the output.
+Global keys are assumed to apply to the output as a whole.
+The ``metadata`` dict can also contain mime-type keys, which will be sub-dictionaries,
+which are interpreted as applying only to output of that type.
+Third parties should put any data they write into a single dict
+with a reasonably unique name to avoid conflicts.
+
+The only metadata keys currently defined in IPython are the width and height
+of images::
+
+    'metadata' : {
+      'image/png' : {
+        'width': 640,
+        'height': 480
+      }
     }
 
 
@@ -934,7 +952,8 @@ Message type: ``status``::
     content = {
         # When the kernel starts to execute code, it will enter the 'busy'
         # state and when it finishes, it will enter the 'idle' state.
-        execution_state : ('busy', 'idle')
+        # The kernel will publish state 'starting' exactly once at process startup.
+        execution_state : ('busy', 'idle', 'starting')
     }
 
 Kernel crashes
@@ -949,7 +968,7 @@ Message type: ``crash``::
 
     content = {
        # Similarly to the 'error' case for execute_reply messages, this will
-       # contain ename, etype and traceback fields.
+       # contain ename, evalue and traceback fields.
 
        # An additional field with supplementary information such as where to
        # send the crash message
