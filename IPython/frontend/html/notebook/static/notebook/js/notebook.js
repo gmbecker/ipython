@@ -423,7 +423,8 @@ var IPython = (function (IPython) {
 	
 =======
 */
-        return this.container.children("div.cell");
+        //return this.container.children("div.cell");
+	return this.container.find("div.cell");
 //>>>>>>> e72b752b53ea460bf672bd4290bc2e359c67b334:IPython/frontend/html/notebook/static/notebook/js/notebook.js
     };
 

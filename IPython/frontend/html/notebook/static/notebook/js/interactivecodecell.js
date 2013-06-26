@@ -83,6 +83,22 @@ var IPython = (function (IPython){
         }
     };
 
+    IntCodeCell.prototype.toJSON = function () {
+        var data = IPython.Cell.prototype.toJSON.apply(this);
+        data.input = this.get_text();
+        data.cell_type = 'interactivecode';
+        if (this.input_prompt_number) {
+            data.prompt_number = this.input_prompt_number;
+        };
+        var outputs = this.output_area.toJSON();
+        data.outputs = outputs;
+        data.language = 'python';
+        data.collapsed = this.collapsed;
+	data.widgets = this.widgets
+        return data;
+    };
+
+
     IntCodeCell.prototype.fromJSON = function(data){
 	IPython.CodeCell.prototype.fromJSON.apply(this, arguments);
 	if(data.cell_type === "interactivecode") {
@@ -118,7 +134,8 @@ var IPython = (function (IPython){
 		    {
 			widget_container = $("<div></div>").addClass("widget_container hbox");
 			widget_label = $("<span></span>").text(wdata.variable + ": ").addClass("widget_label");
-			widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max, value:wdata.defaultvalue}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
+			//widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max, value:wdata.defaultvalue}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
+			widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
 			widget_container.append(widget_label);
 			widget_container.append(widget);
 			this.widget_area.append(widget_container);
@@ -138,7 +155,7 @@ var IPython = (function (IPython){
 	//var widget = $(this.widget_area).children("div.widget_container").children("input");
 	//XXX widget is undefined
 	var widget = $(that.widget_area).children("div.widget_container").children("input");
-	var val = widget.attr("value");
+	var val = widget.val();
 	var txt = dat.variable + " = " + val + ";";
 	
 	that.code_mirror.setLine(dat.linenum, txt);

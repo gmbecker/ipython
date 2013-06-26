@@ -253,6 +253,16 @@ var IPython = (function (IPython) {
 	IPython.Cell.prototype.bind_events.apply(this);
     };
     
+    ContainerCell.prototype.toJSON = function(){
+	var data = IPython.Cell.prototype.toJSON.apply(this);
+	data.cell_type = this.cell_type;
+	data.cells = [];
+	for (i =0; i < this.cells.length; i++)
+	    data.cells[i]= this.cells[i].toJSON();
+	
+	return data;
+    };
+    
     IPython.ContainerCell = ContainerCell;
     
     
@@ -517,7 +527,7 @@ var IPython = (function (IPython) {
 	
 	cell.append(input_area).append(render_area);
 	
-	//we use end_container here and elsewhere so we can use the inherited ContainerCell.pototype.append_cell in all cell types that allow nesting.
+	//we use end_container here and belsewhere so we can use the inherited ContainerCell.pototype.append_cell in all cell types that allow nesting.
 	var end_task = $('<div/>').addClass('end_container').height("30%");
 	cell.append(end_task);
 	this.element = cell;
