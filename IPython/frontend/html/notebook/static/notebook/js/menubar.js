@@ -170,6 +170,15 @@ var IPython = (function (IPython) {
         this.element.find('#to_code').click(function () {
             IPython.notebook.to_code();
         });
+	this.element.find('#to_intcode').click(function () {
+            IPython.notebook.to_intcode();
+        });
+	this.element.find('#to_task').click(function () {
+            IPython.notebook.to_task();
+        });
+	this.element.find('#to_branchset').click(function () {
+            IPython.notebook.to_branchset();
+        });
         this.element.find('#to_markdown').click(function () {
             IPython.notebook.to_markdown();
         });

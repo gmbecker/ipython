@@ -899,6 +899,83 @@ var IPython = (function (IPython) {
         };
     };
 
+
+    /**
+     * Turn a cell into a code cell.
+     * 
+     * @method to_code
+     * @param {Number} [index] A cell's index
+     */
+    Notebook.prototype.to_intcode = function (index) {
+        var i = this.index_or_selected(index);
+        if (this.is_valid_cell_index(i)) {
+            var source_element = this.get_cell_element(i);
+            var source_cell = source_element.data("cell");
+            if (!(source_cell instanceof IPython.CodeCell)) {
+		this.to_code(i);
+		source_element = this.get_cell_element(i);
+		source_cell = source_element.data("cell");
+	    }
+	    
+	    var target_cell = this.insert_cell_below("interactivecode", i);
+	    target_cell.code_mirror.clearHistory();
+	    var tmpdat = source_cell.toJSON();
+	    target_cell.fromJSON(tmpdat);
+	    target_cell.cell_type = "interactivecode";
+	   // target_cell.content = source_cell.content;
+	   // target_cell.outputs
+
+	    var that = this;
+	    var fun =  function() {
+					  var varname = $("#iwidgetvar").val();
+					  var linenum = $("#iwidgetlinenum").val();
+					  var ctype = $("#iwidgetctype").val();	      
+					  var dat = {variable:varname, linenum:linenum, type:ctype};
+					  dat.min = $("#iwidgetmin").val();
+					  dat.max = $("#iwidgetmax").val();
+					  target_cell.add_widget(dat);
+		                          source_element.remove();
+		                          that.set_dirty(true);
+		                          that.select(i);
+	    };
+	    IPython.dialog.modal({title:"Add interactivity widget",
+				  body:$("<p/>").html(
+				      "Variable:<input id='iwidgetvar'/><br/>Line Number:<input id='iwidgetlinenum'/><br/> Control Type: <select id='iwidgetctype'><option value='slider'>Slider</option></select><br/> Min Value:<input id='iwidgetmin'/><br/> Max Value:<input id='iwidgetmax'/>"),
+				  buttons : {
+				      "Cancel" : {
+					  "click" : function() {
+					      target_cell.element.remove();
+					  }
+				      },
+				      "Ok" : {
+					  "click" : fun
+				      }
+				  }
+				 });
+				      
+	   // this.set_dirty(true);
+	};
+    };
+	    
+/*
+                var target_cell = this.insert_cell_below('code',i);
+                var text = source_cell.get_text();
+                if (text === source_cell.placeholder) {
+                    text = '';
+
+            //    }
+                target_cell.set_text(text);
+                // make this value the starting point, so that we can only undo
+                // to this state, instead of a blank cell
+                
+                source_element.remove();
+                this.set_dirty(true);
+}
+        };
+	};
+*/
+
+
     /**
      * Turn a cell into a Markdown cell.
      * 

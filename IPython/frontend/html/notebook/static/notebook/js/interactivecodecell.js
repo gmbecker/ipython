@@ -24,6 +24,7 @@ var IPython = (function (IPython){
         this.default_mode = 'python';
 	this.widgets = [];
 	this.widget_area = null;
+	this.cell_type = "interactivecode";
         var cm_overwrite_options  = {
             extraKeys: {"Tab": "indentMore","Shift-Tab" : "indentLess",'Backspace':"delSpaceToPrevTabStop"},
             onKeyEvent: $.proxy(this.handle_codemirror_keyevent,this)
@@ -130,35 +131,44 @@ var IPython = (function (IPython){
 		for(var i = 0; i < nwidg; i++)
 		{
 		    wdata = data.widgets[i];
-		    if(wdata.type === "slider")
-		    {
-			widget_container = $("<div></div>").addClass("widget_container hbox");
-			widget_label = $("<span></span>").text(wdata.variable + ": ").addClass("widget_label");
-			//widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max, value:wdata.defaultvalue}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
-			widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
-			widget_container.append(widget_label);
-			widget_container.append(widget);
-			this.widget_area.append(widget_container);
-		    }
-		    
+		    this.add_widget(wdata);
 		}
 	    }
 	    
 	}
     };
     
+    IntCodeCell.prototype.add_widget = function(wdata, i)
+    {
+	var i = i | this.widgets.length;
+	var widget_container, widget, widget_label;
+	if(wdata.type === "slider")
+	{
+	    widget_container = $("<div></div>").addClass("widget_container hbox");
+	    widget_label = $("<span></span>").text(wdata.variable + ": ").addClass("widget_label");
+	    //widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max, value:wdata.defaultvalue}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
+	    widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
+	    widget_container.append(widget_label);
+	    widget_container.append(widget);
+	    this.widget_area.append(widget_container);
+	}
+	this.widgets.push(wdata);
+	
+    };
+    
+    
+
+    
     IntCodeCell.prototype.doControl = function(event)
     {
 	var dat = event.data;
 	var that = dat.cell;	
-//var widget = this.widget_area.children("div.widget_container")[dat.index].children("input");
-	//var widget = $(this.widget_area).children("div.widget_container").children("input");
-	//XXX widget is undefined
 	var widget = $(that.widget_area).children("div.widget_container").children("input");
 	var val = widget.val();
 	var txt = dat.variable + " = " + val + ";";
 	
 	that.code_mirror.setLine(dat.linenum, txt);
+	that.output_area.clear_output();
 	that.execute();
 
     };
