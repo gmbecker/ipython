@@ -883,8 +883,19 @@ var IPython = (function (IPython) {
         if (this.is_valid_cell_index(i)) {
             var source_element = this.get_cell_element(i);
             var source_cell = source_element.data("cell");
-            if (!(source_cell instanceof IPython.CodeCell)) {
-                var target_cell = this.insert_cell_below('code',i);
+	    var target_cell = this.insert_cell_below('code',i);
+	    if(source_cell instanceof IPython.IntCodeCell)
+	    {
+		var tmpjson = source_cell.toJSON();
+		//I believe there is a hardcoded check for this in CodeCell.fromJSON...
+		tmpjson.cell_type = "code";
+		target_cell.fromJSON(tmpjson);
+		target_cell.code_mirror.clearHistory();
+		source_element.remove();
+		this.set_dirty(true);
+
+	    } else if (!(source_cell instanceof IPython.CodeCell)) {
+                
                 var text = source_cell.get_text();
                 if (text === source_cell.placeholder) {
                     text = '';

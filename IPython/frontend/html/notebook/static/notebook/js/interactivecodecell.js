@@ -125,7 +125,8 @@ var IPython = (function (IPython){
             };
 
 	    if(data.widgets !== undefined){
-		this.widgets = data.widgets;
+		//These get added during add_widget
+		//this.widgets = data.widgets;
 		var nwidg = data.widgets.length;
 		var widget, wdata, widget_container, widget_label;
 		for(var i = 0; i < nwidg; i++)
