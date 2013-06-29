@@ -407,6 +407,7 @@ var IPython = (function (IPython) {
             } else {
                 this.set_input_prompt();
             };
+	    this.clear_output();
             this.output_area.fromJSON(data.outputs);
             if (data.collapsed !== undefined) {
                 if (data.collapsed) {

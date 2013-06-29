@@ -44,6 +44,7 @@ var IPython = (function (IPython) {
         this.user_highlight = 'auto';
         this.cm_config = options.cm_config;
         this.create_element();
+	this.parent = null;
         if (this.element !== null) {
             this.element.data("cell", this);
             this.bind_events();
@@ -84,7 +85,14 @@ var IPython = (function (IPython) {
      */
     Cell.prototype.create_element = function () {
     };
-
+    
+    Cell.prototype.get_index= function() {
+	var index = null;
+	var parent = this.parent;
+	if(parent !== null)
+	    index = parent.find_cell_index(this);
+	return index;
+    };
 
     /**
      * Subclasses can implement override bind_events.
@@ -130,6 +138,12 @@ var IPython = (function (IPython) {
      * @method select
      */
     Cell.prototype.select = function () {
+	//XXX GB
+	//make absolutely sure anything currently selected is unselected...
+	//This shouldn't be here and needs to be moved once I get it working at all...
+	var notebook = IPython.notebook;
+	
+	notebook.unselect_selected_cell();
         this.element.addClass('selected');
         this.selected = true;
     };

@@ -148,13 +148,21 @@ var IPython = (function (IPython) {
                 var cell = that.get_selected_cell();
                 if (cell && cell.at_top()) {
                     event.preventDefault();
-                    that.select_prev();
+                   // that.select_prev();
+		    cell.parent.select_prev();
                 };
             } else if (event.which === key.DOWNARROW && !event.shiftKey) {
                 var cell = that.get_selected_cell();
                 if (cell && cell.at_bottom()) {
                     event.preventDefault();
-                    that.select_next();
+                    //that.select_next();
+		    //If it is a container cell with cells in it, we step into it instead of farther down the top level. GB
+		    if(typeof cell.cells !== 'undefined' && cell.cells.length)
+		    {
+			cell.select(0);
+		    } else {
+			cell.parent.select_next();
+		    }
                 };
             } else if (event.which === key.ENTER && event.shiftKey) {
                 that.execute_selected_cell();
@@ -415,17 +423,34 @@ var IPython = (function (IPython) {
      * @method get_cell_elements
      * @return {jQuery} A selector of all cell elements
      */
+    Notebook.prototype.get_all_cell_elements = function () {
+        return this.container.find("div.cell");
+//	return this.container.find("div.cell");
+
+    };
+
+
+
+    /**
+     * Get all cell elements for top level cells in the notebook.
+     * 
+     * @method get_cell_elements
+     * @return {jQuery} A selector of all cell elements
+     */
     Notebook.prototype.get_cell_elements = function () {
-/*
-<<<<<<< HEAD:IPython/frontend/html/notebook/static/js/notebook.js
-        //return this.element.children("div.cell");
-	return this.element.find("div.cell");
+        return this.container.children("div.cell");
+//	return this.container.find("div.cell");
+
+    };
+
+
+
+    Notebook.prototype.get_direct_children = function() {
+	var kids = this.container.children("div.cell");
+	return kids.toArray().map(function (e) {
+            return $(e).data("cell");
+        });
 	
-=======
-*/
-        //return this.container.children("div.cell");
-	return this.container.find("div.cell");
-//>>>>>>> e72b752b53ea460bf672bd4290bc2e359c67b334:IPython/frontend/html/notebook/static/notebook/js/notebook.js
     };
 
     /**
@@ -535,13 +560,15 @@ var IPython = (function (IPython) {
         return result;
     };
 
+
+/*
     /**
      * Get a given index , or the selected index if none is provided.
      * 
      * @method index_or_selected
      * @param {Number} index A cell's index
      * @return {Number} The given index, or selected index if none is provided.
-     */
+  
     Notebook.prototype.index_or_selected = function (index) {
         var i;
         if (index === undefined || index === null) {
@@ -554,17 +581,28 @@ var IPython = (function (IPython) {
         }
         return i;
     };
+*/
+    Notebook.prototype.index_or_selected_cell = function(index)
+    {
+	var result = null;
+	if(typeof index !== 'undefined')
+	    result = this.get_cell(index);
+	else
+	    result = this.get_selected_cell();
+
+	return result;
+    };
 
     /**
      * Get the currently selected cell.
      * @method get_selected_cell
      * @return {Cell} The selected cell
-     */
+     
     Notebook.prototype.get_selected_cell = function () {
         var index = this.get_selected_index();
         return this.get_cell(index);
     };
-
+*/
     /**
      * Check whether a cell index is valid.
      * 
@@ -581,16 +619,19 @@ var IPython = (function (IPython) {
     }
 
     /**
-     * Get the index of the currently selected cell.
+     * Get the currently selected cell, regardless of depth.
      
      * @method get_selected_index
-     * @return {Number} The selected cell's numeric index
+     * @return {Cell} The selected cell
      */
-    Notebook.prototype.get_selected_index = function () {
+    Notebook.prototype.get_selected_cell = function () {
         var result = null;
-        this.get_cell_elements().filter(function (index) {
-            if ($(this).data("cell").selected === true) {
-                result = index;
+        var cell = null;
+	//this.get_cell_elements().filter(function (index) {
+	this.get_all_cell_elements().filter(function (index) {
+	    cell = $(this).data("cell");
+	    if (cell.selected === true) {
+                result = cell;
             };
         });
         return result;
@@ -600,6 +641,31 @@ var IPython = (function (IPython) {
     // Cell selection.
 
     /**
+     * Programmatically unselect the currently selected cell.
+     * 
+     * @method unselect_selected_cell
+     * @return {Notebook} This notebook
+     */
+    
+    Notebook.prototype.unselect_selected_cell = function() {
+	//This should be sufficient but wasn't. Bug with containers not getting unselected when their contents are clicked into...
+	/*var scell = this.get_selected_cell();
+	if(scell !== null)
+	    scell.unselect();
+	return this;
+*/
+	var cell = null;
+	this.get_all_cell_elements().filter(function (index) {
+	    cell = $(this).data("cell");
+	    if (cell.selected === true) {
+                cell.unselect();
+            };
+        });
+	return this;
+	
+    };
+    
+    /**
      * Programmatically select a cell.
      * 
      * @method select
@@ -608,11 +674,11 @@ var IPython = (function (IPython) {
      */
     Notebook.prototype.select = function (index) {
         if (this.is_valid_cell_index(index)) {
-            var sindex = this.get_selected_index()
-            if (sindex !== null && index !== sindex) {
-                this.get_cell(sindex).unselect();
-            };
-            var cell = this.get_cell(index);
+	    var cell = this.get_cell(index);
+	    if(cell.selected)
+		return this;
+
+	    this.unselect_selected_cell();
             cell.select();
             if (cell.cell_type === 'heading') {
                 $([IPython.events]).trigger('selected_cell_type_changed.Notebook',
@@ -634,8 +700,18 @@ var IPython = (function (IPython) {
      * @return {Notebook} This notebook
      */
     Notebook.prototype.select_next = function () {
-        var index = this.get_selected_index();
-        this.select(index+1);
+       
+	var cell = this.get_selected_cell();
+	var parent = cell.parent;
+	var index = parent.find_cell_index(cell);
+	/*
+	  * If it is not the last element within its parent, select the next one
+	  * otherwise select the parent.
+	  */
+	if(index < parent.ncells() - 1 )
+            parent.select(index+1);
+	else
+	    parent.select();
         return this;
     };
 
@@ -646,8 +722,13 @@ var IPython = (function (IPython) {
      * @return {Notebook} This notebook
      */
     Notebook.prototype.select_prev = function () {
-        var index = this.get_selected_index();
-        this.select(index-1);
+        var cell = this.get_selected_cell();
+	var parent = cell.parent;
+	var index = parent.find_cell_index(cell);
+	if( index > 0 )
+            parent.select(index-1);
+	else
+	    parent.select();
         return this;
     };
 
@@ -710,24 +791,30 @@ var IPython = (function (IPython) {
      * @return {Notebook} This notebook
      */
     Notebook.prototype.delete_cell = function (index) {
-        var i = this.index_or_selected(index);
-        var cell = this.get_selected_cell();
+     //   var i = this.index_or_selected(index);
+      //  var cell = this.get_selected_cell();
+	var cell = this.index_or_selected_cell(index);
         this.undelete_backup = cell.toJSON();
         $('#undelete_cell').removeClass('ui-state-disabled');
-        if (this.is_valid_cell_index(i)) {
-            var ce = this.get_cell_element(i);
-            ce.remove();
-            if (i === (this.ncells())) {
-                this.select(i-1);
-                this.undelete_index = i - 1;
-                this.undelete_below = true;
-            } else {
-                this.select(i);
-                this.undelete_index = i;
-                this.undelete_below = false;
-            };
-            this.set_dirty(true);
+      //  if (this.is_valid_cell_index(i)) {
+	
+            //var ce = this.get_cell_element(i);
+	var i = parent.find_cell_index(cell);
+	parent = cell.parent;
+	var ce = cell.element;
+        ce.remove();
+
+        if (i === (parent.ncells())) {
+            parent.select(i-1);
+            this.undelete_index = i - 1;
+            this.undelete_below = true;
+        } else {
+            parent.select(i);
+            this.undelete_index = i;
+            this.undelete_below = false;
         };
+        this.set_dirty(true);
+	// };
         return this;
     };
 
@@ -746,7 +833,8 @@ var IPython = (function (IPython) {
      **/
     Notebook.prototype.insert_cell_at_index = function(type, index){
 
-        var ncells = this.ncells();
+        //var ncells = this.ncells();
+	var ncells = this.get_direct_children().length;
         var index = Math.min(index,ncells);
             index = Math.max(index,0);
         var cell = null;
@@ -773,10 +861,11 @@ var IPython = (function (IPython) {
             }
 
             if(this._insert_element_at_index(cell.element,index)){
-                cell.render();
+		cell.parent = this;        
+		cell.render();
                 this.select(this.find_cell_index(cell));
                 this.set_dirty(true);
-            }
+	    }
         }
         return cell;
 
@@ -836,8 +925,17 @@ var IPython = (function (IPython) {
      * @return handle to created cell or null
      **/
     Notebook.prototype.insert_cell_above = function (type, index) {
-        index = this.index_or_selected(index);
-        return this.insert_cell_at_index(type, index);
+        //index = this.index_or_selected(index);
+	var cell = this.get_selected_cell(index);
+	
+	var parent;
+	if(!cell)
+	    parent = this;
+	else
+	    parent = cell.parent;
+	var index = parent.find_cell_index(cell);
+	return parent.insert_cell_at_index(type, index);
+//        return this.insert_cell_at_index(type, index);
     };
 
     /**
@@ -849,13 +947,21 @@ var IPython = (function (IPython) {
      * @method insert_cell_below
      * @param type {string} cell type
      * @param [index] {integer}
-     *
+     
      * @return handle to created cell or null
      *
      **/
     Notebook.prototype.insert_cell_below = function (type, index) {
-        index = this.index_or_selected(index);
-        return this.insert_cell_at_index(type, index+1);
+      //  index = this.index_or_selected(index);
+	var cell = this.get_selected_cell();
+	var parent;
+	if(!cell)
+	    parent = this;
+	else
+	    parent = cell.parent;
+	var index = parent.find_cell_index(cell);
+	return parent.insert_cell_at_index(type, index+1);
+//        return this.insert_cell_at_index(type, index+1);
     };
 
 
@@ -872,6 +978,8 @@ var IPython = (function (IPython) {
         return this.insert_cell_below(type,len-1);
     };
 
+
+
     /**
      * Turn a cell into a code cell.
      * 
@@ -879,56 +987,66 @@ var IPython = (function (IPython) {
      * @param {Number} [index] A cell's index
      */
     Notebook.prototype.to_code = function (index) {
-        var i = this.index_or_selected(index);
-        if (this.is_valid_cell_index(i)) {
-            var source_element = this.get_cell_element(i);
-            var source_cell = source_element.data("cell");
-	    var target_cell = this.insert_cell_below('code',i);
-	    if(source_cell instanceof IPython.IntCodeCell)
-	    {
-		var tmpjson = source_cell.toJSON();
-		//I believe there is a hardcoded check for this in CodeCell.fromJSON...
-		tmpjson.cell_type = "code";
-		target_cell.fromJSON(tmpjson);
-		target_cell.code_mirror.clearHistory();
-		source_element.remove();
-		this.set_dirty(true);
-
-	    } else if (!(source_cell instanceof IPython.CodeCell)) {
+//	var i = this.index_or_selected(index);
+ //       if (this.is_valid_cell_index(i)) {
+            //var source_element = this.get_cell_element(i);
+	var source_cell = this.index_or_selected_cell(index);
+	var source_element = source_cell.element;
+            //var source_cell = source_element.data("cell");
+	var parent = source_cell.parent;
+	var sindex = parent.find_cell_index(source_cell);
+	
+	var target_cell = parent.insert_cell_below('code',i);
+	if(source_cell instanceof IPython.IntCodeCell)
+	{
+	    var tmpjson = source_cell.toJSON();
+	    //I believe there is a hardcoded check for this in CodeCell.fromJSON...
+	    tmpjson.cell_type = "code";
+	    target_cell.fromJSON(tmpjson);
+	    target_cell.code_mirror.clearHistory();
+	    source_element.remove();
+	    this.set_dirty(true);
+	    
+	} else if (!(source_cell instanceof IPython.CodeCell)) {
                 
-                var text = source_cell.get_text();
-                if (text === source_cell.placeholder) {
-                    text = '';
-                }
-                target_cell.set_text(text);
-                // make this value the starting point, so that we can only undo
-                // to this state, instead of a blank cell
-                target_cell.code_mirror.clearHistory();
-                source_element.remove();
-                this.set_dirty(true);
-            };
-        };
+            var text = source_cell.get_text();
+            if (text === source_cell.placeholder) {
+                text = '';
+            }
+            target_cell.set_text(text);
+            // make this value the starting point, so that we can only undo
+            // to this state, instead of a blank cell
+            target_cell.code_mirror.clearHistory();
+            source_element.remove();
+            this.set_dirty(true);
+ //       };
+	};
     };
 
 
     /**
-     * Turn a cell into a code cell.
+     * Turn a cell into an interactive code cell.
      * 
-     * @method to_code
+     * @method to_intcode
      * @param {Number} [index] A cell's index
      */
     Notebook.prototype.to_intcode = function (index) {
-        var i = this.index_or_selected(index);
-        if (this.is_valid_cell_index(i)) {
-            var source_element = this.get_cell_element(i);
-            var source_cell = source_element.data("cell");
-            if (!(source_cell instanceof IPython.CodeCell)) {
-		this.to_code(i);
-		source_element = this.get_cell_element(i);
-		source_cell = source_element.data("cell");
-	    }
+        //var i = this.index_or_selected(index);
+	var source_cell = this.index_or_selected_cell(index);
+      //  if (this.is_valid_cell_index(i)) {
+          //  var source_element = this.get_cell_element(i);
+          //  var source_cell = source_element.data("cell");
+        var source_element = source_cell.element;
+	var parent = source_cell.parent;
+	if (!(source_cell instanceof IPython.CodeCell)) {
+	//	this.to_code(i);
+	    this.to_code();
+	    //we should be guaranteed it is selected from the to_code call...
+	    source_element = this.get_selected_cell();
+	    source_cell = source_element.data("cell");
+	}
 	    
-	    var target_cell = this.insert_cell_below("interactivecode", i);
+	var target_cell = parent.insert_cell_below("interactivecode", parent.find_cell_index( source_cell ) );
 	    target_cell.code_mirror.clearHistory();
 	    var tmpdat = source_cell.toJSON();
 	    target_cell.fromJSON(tmpdat);
@@ -947,7 +1065,8 @@ var IPython = (function (IPython) {
 					  target_cell.add_widget(dat);
 		                          source_element.remove();
 		                          that.set_dirty(true);
-		                          that.select(i);
+		                          //that.select(i);
+		                          target_cell.select();
 	    };
 	    IPython.dialog.modal({title:"Add interactivity widget",
 				  body:$("<p/>").html(
@@ -965,26 +1084,33 @@ var IPython = (function (IPython) {
 				 });
 				      
 	   // this.set_dirty(true);
-	};
+//    };
     };
 	    
-/*
-                var target_cell = this.insert_cell_below('code',i);
-                var text = source_cell.get_text();
-                if (text === source_cell.placeholder) {
-                    text = '';
 
-            //    }
-                target_cell.set_text(text);
-                // make this value the starting point, so that we can only undo
-                // to this state, instead of a blank cell
-                
-                source_element.remove();
-                this.set_dirty(true);
-}
-        };
+
+    /**
+     * Turn a cell into a Task (container) cell.
+     * This constitutes creating a task cell and placing the selected cell inside it as the first/only element
+     * 
+     * @method to_task
+     * @param {Number} [index] A cell's index
+     */
+    Notebook.prototype.to_task = function (index) {
+        var source_cell = this.index_or_selected_cell(index);
+	var source_element = source_cell.element;
+        if(!( source_cell instanceof IPython.TaskCell ) ) {
+	    var parent = source_cell.parent;
+	    var tmpdat = source_cell.toJSON();
+	    var target_cell = parent.insert_cell_below('task', parent.find_cell_index(source_cell));
+	    var targ2 = target_cell.append_cell(tmpdat.cell_type);
+	    targ2.fromJSON(tmpdat);
+	    source_element.remove();
+	    this.set_dirty(true);
+	    targ2.select();
+	    //this.select(this.find_cell_index(targ2));
 	};
-*/
+    };
 
 
     /**
@@ -994,28 +1120,27 @@ var IPython = (function (IPython) {
      * @param {Number} [index] A cell's index
      */
     Notebook.prototype.to_markdown = function (index) {
-        var i = this.index_or_selected(index);
-        if (this.is_valid_cell_index(i)) {
-            var source_element = this.get_cell_element(i);
-            var source_cell = source_element.data("cell");
-            if (!(source_cell instanceof IPython.MarkdownCell)) {
-                var target_cell = this.insert_cell_below('markdown',i);
-                var text = source_cell.get_text();
-                if (text === source_cell.placeholder) {
-                    text = '';
-                };
-                // The edit must come before the set_text.
-                target_cell.edit();
-                target_cell.set_text(text);
-                // make this value the starting point, so that we can only undo
-                // to this state, instead of a blank cell
-                target_cell.code_mirror.clearHistory();
-                source_element.remove();
-                this.set_dirty(true);
+	var source_cell = this.index_or_selected_cell(index);
+	var source_element = source_cell.element;
+        if (!(source_cell instanceof IPython.MarkdownCell)) {
+	    var parent = source_cell.parent;
+            var target_cell = parent.insert_cell_below('markdown',parent.find_cell_index( source_cell ) );
+            var text = source_cell.get_text();
+            if (text === source_cell.placeholder) {
+                text = '';
             };
-        };
+            // The edit must come before the set_text.
+            target_cell.edit();
+            target_cell.set_text(text);
+            // make this value the starting point, so that we can only undo
+            // to this state, instead of a blank cell
+            target_cell.code_mirror.clearHistory();
+            source_element.remove();
+            this.set_dirty(true);
+	};
+    
     };
-
+    
     /**
      * Turn a cell into a raw text cell.
      * 
@@ -1023,26 +1148,23 @@ var IPython = (function (IPython) {
      * @param {Number} [index] A cell's index
      */
     Notebook.prototype.to_raw = function (index) {
-        var i = this.index_or_selected(index);
-        if (this.is_valid_cell_index(i)) {
-            var source_element = this.get_cell_element(i);
-            var source_cell = source_element.data("cell");
-            var target_cell = null;
-            if (!(source_cell instanceof IPython.RawCell)) {
-                target_cell = this.insert_cell_below('raw',i);
-                var text = source_cell.get_text();
-                if (text === source_cell.placeholder) {
-                    text = '';
-                };
-                // The edit must come before the set_text.
-                target_cell.edit();
-                target_cell.set_text(text);
-                // make this value the starting point, so that we can only undo
-                // to this state, instead of a blank cell
-                target_cell.code_mirror.clearHistory();
-                source_element.remove();
-                this.set_dirty(true);
+	var source_cell = this.index_or_selected_cell(index);
+	var source_element = source_cell.element;
+        if (!(source_cell instanceof IPython.RawCell)) {
+	    var parent = source_cell.parent;
+            target_cell = parent.insert_cell_below('raw', parent.find_cell_index( source_cell) );
+            var text = source_cell.get_text();
+            if (text === source_cell.placeholder) {
+                text = '';
             };
+            // The edit must come before the set_text.
+            target_cell.edit();
+            target_cell.set_text(text);
+            // make this value the starting point, so that we can only undo
+            // to this state, instead of a blank cell
+            target_cell.code_mirror.clearHistory();
+            source_element.remove();
+            this.set_dirty(true);
         };
     };
 
@@ -1055,35 +1177,33 @@ var IPython = (function (IPython) {
      */
     Notebook.prototype.to_heading = function (index, level) {
         level = level || 1;
-        var i = this.index_or_selected(index);
-        if (this.is_valid_cell_index(i)) {
-            var source_element = this.get_cell_element(i);
-            var source_cell = source_element.data("cell");
-            var target_cell = null;
-            if (source_cell instanceof IPython.HeadingCell) {
-                source_cell.set_level(level);
-            } else {
-                target_cell = this.insert_cell_below('heading',i);
-                var text = source_cell.get_text();
-                if (text === source_cell.placeholder) {
-                    text = '';
-                };
-                // The edit must come before the set_text.
-                target_cell.set_level(level);
-                target_cell.edit();
-                target_cell.set_text(text);
-                // make this value the starting point, so that we can only undo
-                // to this state, instead of a blank cell
-                target_cell.code_mirror.clearHistory();
-                source_element.remove();
-                this.set_dirty(true);
+	var source_cell = this.index_or_selected_cell(index);
+	var source_element = source_cell.element;
+        if (source_cell instanceof IPython.HeadingCell) {
+            source_cell.set_level(level);
+        } else {
+	    var parent = source_cell.parent;
+            var target_cell = parent.insert_cell_below('heading', parent.find_cell_index( source_cell ) );
+            var text = source_cell.get_text();
+            if (text === source_cell.placeholder) {
+                text = '';
             };
-            $([IPython.events]).trigger('selected_cell_type_changed.Notebook',
-                {'cell_type':'heading',level:level}
-            );
+            // The edit must come before the set_text.
+            target_cell.set_level(level);
+            target_cell.edit();
+            target_cell.set_text(text);
+            // make this value the starting point, so that we can only undo
+            // to this state, instead of a blank cell
+            target_cell.code_mirror.clearHistory();
+            source_element.remove();
+            this.set_dirty(true);
         };
+        $([IPython.events]).trigger('selected_cell_type_changed.Notebook',
+				    {'cell_type':'heading',level:level}
+				   );
+	
     };
-
+    
 
     // Cut/Copy/Paste
 
@@ -1184,6 +1304,8 @@ var IPython = (function (IPython) {
 
     // Cell undelete
 
+    //XXX GB Not ported over to new multi-level indexing yet
+
     /**
      * Restore the most recently deleted cell.
      * 
@@ -1244,7 +1366,7 @@ var IPython = (function (IPython) {
         };
     };
 
-    /**
+    /** XXX GB Not ported to multi-level indexing
      * Combine the selected cell into the cell above it.
      * 
      * @method merge_cell_above
@@ -1268,7 +1390,7 @@ var IPython = (function (IPython) {
         };
     };
 
-    /**
+    /** XXX not ported to multi-level indexing
      * Combine the selected cell into the cell below it.
      * 
      * @method merge_cell_below
@@ -1302,8 +1424,10 @@ var IPython = (function (IPython) {
      * @param {Number} index A cell's numeric index
      */
     Notebook.prototype.collapse = function (index) {
-        var i = this.index_or_selected(index);
-        this.get_cell(i).collapse();
+   //     var i = this.index_or_selected(index);
+     //   this.get_cell(i).collapse();
+	var cell = this.index_or_selected_cell(index);
+	cell.collapse();
         this.set_dirty(true);
     };
 
@@ -1314,8 +1438,10 @@ var IPython = (function (IPython) {
      * @param {Number} index A cell's numeric index
      */
     Notebook.prototype.expand = function (index) {
-        var i = this.index_or_selected(index);
-        this.get_cell(i).expand();
+       // var i = this.index_or_selected(index);
+       // this.get_cell(i).expand();
+	var cell = this.index_or_selected_cell(index);
+	cell.expand();
         this.set_dirty(true);
     };
 
@@ -1325,8 +1451,10 @@ var IPython = (function (IPython) {
      * @param {Number} index A cell's numeric index
      */
     Notebook.prototype.toggle_output = function (index) {
-        var i = this.index_or_selected(index);
-        this.get_cell(i).toggle_output();
+      //  var i = this.index_or_selected(index);
+       // this.get_cell(i).toggle_output();
+	var cell = this.index_or_selected_cell(index);
+	cell.toggle_output();
         this.set_dirty(true);
     };
 
@@ -1337,8 +1465,9 @@ var IPython = (function (IPython) {
      * @param {Number} index A cell's numeric index
      */
     Notebook.prototype.toggle_output_scroll = function (index) {
-        var i = this.index_or_selected(index);
-        this.get_cell(i).toggle_output_scroll();
+       // var i = this.index_or_selected(index);
+	var cell = this.index_or_selected_cell(index);
+	cell.toggle_output_scroll();
     };
 
     /**
@@ -1485,19 +1614,25 @@ var IPython = (function (IPython) {
         $.extend(default_options, options);
         var that = this;
         var cell = that.get_selected_cell();
-        var cell_index = that.find_cell_index(cell);
+        that = cell.parent;
+	var cell_index = that.find_cell_index(cell);
+	
         if (cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell) {
             cell.execute();
         }
         if (default_options.terminal) {
             cell.select_all();
         } else {
-            if ((cell_index === (that.ncells()-1)) && default_options.add_new) {
-                that.insert_cell_below('code');
+	    that = cell.parent;
+	    cell_index = that.find_cell_index(cell);
+	    if ((cell_index === (that.ncells()-1)) && default_options.add_new) {
+                that.insert_cell_below('code', cell_index);
                 // If we are adding a new cell at the end, scroll down to show it.
                 that.scroll_to_bottom();
             } else {
-                that.select(cell_index+1);
+             //   that.select(cell_index+1);
+		//that.select_next(
+		this.select_next();
             };
         };
         this.set_dirty(true);
@@ -1659,8 +1794,9 @@ var IPython = (function (IPython) {
      * @return {Object} A JSON-friendly representation of this notebook.
      */
     Notebook.prototype.toJSON = function () {
-        var cells = this.get_cells();
-        var ncells = cells.length;
+       // var cells = this.get_cells();
+	var cells = this.get_direct_children();
+	var ncells = cells.length;
         var cell_array = new Array(ncells);
         for (var i=0; i<ncells; i++) {
             cell_array[i] = cells[i].toJSON();

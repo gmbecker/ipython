@@ -157,8 +157,23 @@ var IPython = (function (IPython){
 	
     };
     
-    
+/*
+//output not getting cleared properly after execution of interactive code cells...
+    IntCodeCell.prototype.execute = function () {
+        this.output_area.clear_output(true, true, true);
+        this.set_input_prompt('*');
+        this.element.addClass("running");
+        var callbacks = {
+            'execute_reply': $.proxy(this._handle_execute_reply, this),
+            'output': $.proxy(this.output_area.handle_output, this.output_area),
+            'clear_output': $.proxy(this.output_area.handle_clear_output, this.output_area),
+            'set_next_input': $.proxy(this._handle_set_next_input, this),
+            'input_request': $.proxy(this._handle_input_request, this)
+        };
+        var msg_id = this.kernel.execute(this.get_text(), callbacks, {silent: false});
+    };    
 
+*/
     
     IntCodeCell.prototype.doControl = function(event)
     {
@@ -169,7 +184,7 @@ var IPython = (function (IPython){
 	var txt = dat.variable + " = " + val + ";";
 	
 	that.code_mirror.setLine(dat.linenum, txt);
-	that.output_area.clear_output();
+	//that.output_area.clear_output(true, true, true);
 	that.execute();
 
     };

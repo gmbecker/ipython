@@ -55,8 +55,10 @@ var IPython = (function (IPython) {
         this.element.find("li").click(function (event, ui) {
                 // The selected cell loses focus when the menu is entered, so we
                 // re-select it upon selection.
-                var i = IPython.notebook.get_selected_index();
-                IPython.notebook.select(i);
+                //var i = IPython.notebook.get_selected_index();
+                //IPython.notebook.select(i);
+	    var cell = IPython.notebook.get_selected_cell();
+	    cell.select();
             }
         );
     };

@@ -123,6 +123,7 @@ var IPython = (function (IPython) {
                 .attr('id','cell_type')
                 // .addClass('ui-widget-content')
                 .append($('<option/>').attr('value','code').text('Code'))
+                .append($('<option/>').attr('value','interactivecode').text('Interactive Code'))
                 .append($('<option/>').attr('value','markdown').text('Markdown'))
                 .append($('<option/>').attr('value','raw').text('Raw Text'))
                 .append($('<option/>').attr('value','heading1').text('Heading 1'))
@@ -170,7 +171,9 @@ var IPython = (function (IPython) {
         
         this.element.find('#cell_type').change(function () {
             var cell_type = $(this).val();
-            if (cell_type === 'code') {
+            if (cell_type === 'interactivecode') {
+                IPython.notebook.to_intcode();
+            } else if (cell_type === 'code') {
                 IPython.notebook.to_code();
             } else if (cell_type === 'markdown')  {
                 IPython.notebook.to_markdown();

@@ -2,12 +2,16 @@
 var IPython = (function (IPython) {
     
     // ContainerCell (virtual class for cells that allow nesting, eg Tasks and branchsets, branches)
+
+    var key = IPython.utils.keycodes;
+
     
     var ContainerCell = function(kernel){
 	this.placeholder = "This is a Container Cell";
 	IPython.Cell.apply(this, arguments);
 	this.cell_type = null; //left to subclasses
 	this.kernel = kernel || null;
+	this.cells = [];
 	
     };
     
@@ -29,7 +33,167 @@ var IPython = (function (IPython) {
         return result;
     };
     
-    
+
+    /**
+     * Get the numeric index of a given cell.
+     * 
+     * @method find_cell_index
+     * @param {Cell} cell The provided cell
+     * @return {Number} The cell's numeric index
+     */
+    ContainerCell.prototype.find_cell_index = function (cell) {
+        var result = null;
+        this.get_cell_elements().filter(function (index) {
+            if ($(this).data("cell") === cell) {
+                result = index;
+            };
+        });
+        return result;
+    };
+
+
+    ContainerCell.prototype.set_dirty = function(value)
+    {
+	var notebook = this.parent;
+	while(!(notebook instanceof IPython.Notebook))
+	{
+	    notebook = notebook.parent;
+	}
+	notebook.set_dirty(value);
+    };
+  
+
+
+    /**
+     * Insert a cell so that after insertion the cell is at given index.
+     *
+     * Similar to insert_above, but index parameter is mandatory
+     *
+     * Index will be brought back into the accissible range [0,n]
+     *
+     * @method insert_cell_at_index
+     * @param type {string} in ['code','markdown','heading']
+     * @param [index] {int} a valid index where to inser cell
+     *
+     * @return cell {cell|null} created cell or null
+     **/
+    ContainerCell.prototype.insert_cell_at_index = function(type, index){
+
+        var ncells = this.ncells();
+        var index = Math.min(index,ncells);
+            index = Math.max(index,0);
+        var cell = null;
+	var that = this;
+
+        if (ncells === 0 || this.is_valid_cell_index(index) || index === ncells) {
+            if (type === 'code') {
+                cell = new IPython.CodeCell(this.kernel);
+                cell.set_input_prompt();
+	    } else if (type === 'interactivecode') {
+                cell = new IPython.IntCodeCell(this.kernel);
+                cell.set_input_prompt();
+            } else if (type === 'markdown') {
+                cell = new IPython.MarkdownCell();
+            } else if (type === 'raw') {
+                cell = new IPython.RawCell();
+	    } else if (type === 'task') {
+		cell = new IPython.TaskCell(this.kernel);
+	    } else if (type === 'altset') {
+		cell = new IPython.AltSetCell(this.kernel);
+	    } else if (type === 'alt') {
+		cell = new IPython.AltCell(this.kernel);
+            } else if (type === 'heading') {
+                cell = new IPython.HeadingCell();
+            }
+
+            if(that._insert_element_at_index(cell.element,index)){
+                cell.render();
+                that.select(that.find_cell_index(cell));
+                that.set_dirty(true);
+		cell.parent = that;
+		that.cells.push(cell);
+            }
+        }
+        return cell;
+
+    };
+
+    ContainerCell.prototype.insert_cell_below = function(type, index)
+    {
+//	index = this.index_or_selected(index);
+	return this.insert_cell_at_index(type, index + 1);
+    };
+
+    ContainerCell.prototype.insert_cell_above = function(type, index)
+    {
+//	index = this.index_or_selected(index);
+	return this.insert_cell_at_index(type, index);
+    };
+   
+
+
+    /**
+     * Scroll to the bottom of the container.
+     * 
+     * @method scroll_to_bottom
+     */
+    ContainerCell.prototype.scroll_to_bottom = function () {
+        this.element.animate({scrollTop:this.element.get(0).scrollHeight}, 0);
+    };
+
+
+
+    /**
+     * Insert an element at given cell index.
+     *
+     * @method _insert_element_at_index
+     * @param element {dom element} a cell element
+     * @param [index] {int} a valid index where to inser cell
+     * @private
+     *
+     * return true if everything whent fine.
+     **/
+    ContainerCell.prototype._insert_element_at_index = function(element, index){
+        if (element === undefined){
+            return false;
+        }
+
+        var ncells = this.ncells();
+
+        //if (ncells === 0) {
+	//If index===ncells it now uses places the element before div.endspace, instead of after index-1. 
+	//This allows a workaround that prevents problems with indexing/insertion in nonlinear documents 
+	if (ncells === 0 || ncells === index) {
+            // special case append if empty
+            //this.element.find('div.end_space').before(element);
+	    this.element.find('div.end_container').before(element);
+        } else if ( ncells === index ) {
+	    //XXX superceded by above. Why did they have this as a special extra case?
+            // special case append it the end, but not empty 
+            this.get_cell_element(index-1).after(element);
+        } else if (this.is_valid_cell_index(index)) {
+            // otherwise always somewhere to append to
+            this.get_cell_element(index).before(element);
+        } else {
+	    return false;
+        }
+
+	
+
+        if (this.undelete_index !== null && index <= this.undelete_index) {
+            this.undelete_index = this.undelete_index + 1;
+            this.set_dirty(true);
+        }
+        return true;
+    };
+
+
+
+
+
+
+
+  
     // Kernel related calls.
     
     //Note that this allows for nested tasks
@@ -105,7 +269,7 @@ var IPython = (function (IPython) {
         // handlers and is used to provide custom key handling. Its return
         // value is used to determine if CodeMirror should ignore the event:
         // true = ignore, false = don't ignore.
-	
+
         var that = this;
         if (event.which === key.UPARROW && event.type === 'keydown') {
             // If we are not at the top, let CM handle the up arrow and
@@ -130,10 +294,53 @@ var IPython = (function (IPython) {
     };
     
     
-    ContainerCell.prototype.select = function () {
-        IPython.Cell.prototype.select.apply(this);
-        this.code_mirror.refresh();
-        this.code_mirror.focus();
+    ContainerCell.prototype.select = function (index) {
+	var cell;
+	if(typeof index === 'undefined') { // || index == this.ncells() || index == -1) { 
+	    cell = this;
+	} else {
+	    cell = this.get_cell(index);
+	}
+	var notebook = this.get_notebook();
+	notebook.unselect_selected_cell();
+	
+	IPython.Cell.prototype.select.apply(cell);
+	cell.code_mirror.refresh();
+        cell.code_mirror.focus();
+    };
+
+    ContainerCell.prototype.select_next = function() {
+	var notebook = IPython.notebook;
+	var cell = notebook.get_selected_cell();
+	var cindex = this.find_cell_index(cell);
+	if(cindex < this.ncells() - 1)
+	    this.select(cindex + 1);
+	else
+	{
+	    cindex = notebook.find_cell_index(this);
+	    if(cindex < notebook.ncells() - 1)
+		notebook.select(cindex + 1);
+	}
+    };
+
+    ContainerCell.prototype.select_prev = function() {
+	var notebook = IPython.notebook;
+	var cell = notebook.get_selected_cell();
+	var cindex = this.find_cell_index(cell);
+	if(cindex > 0)
+	    this.select(cindex - 1);
+	else
+	    this.select();
+    };
+
+		
+
+    ContainerCell.prototype.get_notebook = function(){
+	var notebook = this.parent;
+	while(!( notebook instanceof IPython.Notebook) )
+	    notebook = notebook.parent
+
+	return notebook;
     };
     
     
@@ -188,14 +395,16 @@ var IPython = (function (IPython) {
             cell = new IPython.HeadingCell();
         };
         if (cell !== null) {
+	    cell.parent = this;
 	    //this.element.find('div.end_container').before(cell.element);
 	    this.element.children('div.end_container').before(cell.element);
             cell.render();
 	    //            this.select(this.find_cell_index(cell));
             this.dirty = true;
+	    this.cells.push(cell);
+	 
             return cell;
         };
-	// };
         return cell;
     };
     
@@ -258,7 +467,7 @@ var IPython = (function (IPython) {
 	data.cell_type = this.cell_type;
 	data.cells = [];
 	for (i =0; i < this.cells.length; i++)
-	    data.cells[i]= this.cells[i].toJSON();
+	    data.cells[i] =  this.cells[i].toJSON();
 	
 	return data;
     };
