@@ -120,8 +120,9 @@ var IPython = (function (IPython) {
         });
 
         $([IPython.events]).on('select.Cell', function (event, data) {
-            var index = that.find_cell_index(data.cell);
-            that.select(index);
+          //  var index = that.find_cell_index(data.cell);
+           // that.select(index);
+	    data.cell.select();
         });
 
 
@@ -799,8 +800,9 @@ var IPython = (function (IPython) {
       //  if (this.is_valid_cell_index(i)) {
 	
             //var ce = this.get_cell_element(i);
+
+	var parent = cell.parent;
 	var i = parent.find_cell_index(cell);
-	parent = cell.parent;
 	var ce = cell.element;
         ce.remove();
 
