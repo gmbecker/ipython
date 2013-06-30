@@ -1709,6 +1709,8 @@ var IPython = (function (IPython) {
         if (default_options.terminal) {
             cell.select_all();
         } else {
+	    if(cell instanceof IPython.AltCell)
+	   	cell = cell.parent;
 	    that = cell.parent;
 	    cell_index = that.find_cell_index(cell);
 	    if ((cell_index === (that.ncells()-1)) && default_options.add_new) {
@@ -1718,7 +1720,8 @@ var IPython = (function (IPython) {
             } else {
              //   that.select(cell_index+1);
 		//that.select_next(
-		this.select_next();
+		cell.select();
+		that.select_next();
             };
         };
         this.set_dirty(true);

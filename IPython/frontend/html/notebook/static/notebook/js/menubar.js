@@ -148,10 +148,14 @@ var IPython = (function (IPython) {
         });
         // Insert
         this.element.find('#insert_cell_above').click(function () {
-            IPython.notebook.insert_cell_above('code');
+          //  IPython.notebook.insert_cell_above('code');
+	    var cell = IPython.notebook.get_selected_cell();
+	    cell.parent.insert_cell_above("code", cell.parent.find_cell_index(cell));
         });
         this.element.find('#insert_cell_below').click(function () {
-            IPython.notebook.insert_cell_below('code');
+	    var cell = IPython.notebook.get_selected_cell();
+	    cell.parent.insert_cell_below("code", cell.parent.find_cell_index(cell));
+//            IPython.notebook.insert_cell_below('code');
         });
         // Cell
         this.element.find('#run_cell').click(function () {

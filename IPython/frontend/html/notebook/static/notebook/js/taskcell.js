@@ -716,6 +716,14 @@ var IPython = (function (IPython) {
 	this.resize_alts();
 	IPython.notebook.set_dirty(true);
     }
+    
+    AltSetCell.prototype.insert_cell_above = function(type, index)
+    {
+	var altcell = this.insert_cell_at_index("alt", index);
+	altcell.insert_cell_at_index(type, 0);
+	this.resize_alts();
+	IPython.notebook.set_dirty(true);
+    }
 
     IPython.AltSetCell = AltSetCell;
     
@@ -779,6 +787,9 @@ var IPython = (function (IPython) {
 	    if( cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell || cell instanceof IPython.IntCodeCell)
 		cell.execute( function(text){ return null;} );
 	}
+	//reselect this so that Notebook.execute_selected_cell will select the correct next cell
+	this.select();
+	
 	var parent = this.parent;
 	var gparent = parent.parent;
 	var pindex = gparent.find_cell_index(parent);
