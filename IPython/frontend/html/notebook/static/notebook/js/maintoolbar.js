@@ -125,6 +125,9 @@ var IPython = (function (IPython) {
                 .append($('<option/>').attr('value','code').text('Code'))
                 .append($('<option/>').attr('value','interactivecode').text('Interactive Code'))
                 .append($('<option/>').attr('value','markdown').text('Markdown'))
+                .append($('<option/>').attr('value','task').text('Task'))
+                .append($('<option/>').attr('value','altset').text('Alternatives Set'))
+
                 .append($('<option/>').attr('value','raw').text('Raw Text'))
                 .append($('<option/>').attr('value','heading1').text('Heading 1'))
                 .append($('<option/>').attr('value','heading2').text('Heading 2'))
@@ -179,6 +182,10 @@ var IPython = (function (IPython) {
                 IPython.notebook.to_markdown();
             } else if (cell_type === 'raw')  {
                 IPython.notebook.to_raw();
+	    } else if (cell_type === 'task')  {
+                IPython.notebook.to_task();
+	    } else if (cell_type === 'altset')  {
+                IPython.notebook.to_altset();
             } else if (cell_type === 'heading1')  {
                 IPython.notebook.to_heading(undefined, 1);
             } else if (cell_type === 'heading2')  {

@@ -17,6 +17,12 @@ var IPython = (function (IPython) {
     
     ContainerCell.prototype = new IPython.Cell();
     
+
+  
+    ContainerCell.prototype.auto_highlight = function () {
+        this._auto_highlight(IPython.config.raw_cell_highlight);
+    };
+ 
     
     //Cell indexing and lookup. lifted from notebook.js Notebook.prototype functions
     ContainerCell.prototype.get_cell_elements = function () {
@@ -317,9 +323,16 @@ var IPython = (function (IPython) {
 	    this.select(cindex + 1);
 	else
 	{
-	    cindex = notebook.find_cell_index(this);
-	    if(cindex < notebook.ncells() - 1)
-		notebook.select(cindex + 1);
+	    var parent = this.parent;
+	    cindex = parent.find_cell_index(this);
+	    
+	    if(cindex < parent.ncells() - 1)
+		parent.select(cindex + 1);
+	    else
+	    {
+		this.select();
+		this.parent.select_next();
+	    }
 	}
     };
 
@@ -400,7 +413,7 @@ var IPython = (function (IPython) {
 	    this.element.children('div.end_container').before(cell.element);
             cell.render();
 	    //            this.select(this.find_cell_index(cell));
-            this.dirty = true;
+            IPython.notebook.set_dirty(true);
 	    this.cells.push(cell);
 	 
             return cell;
@@ -466,7 +479,7 @@ var IPython = (function (IPython) {
 	var data = IPython.Cell.prototype.toJSON.apply(this);
 	data.cell_type = this.cell_type;
 	data.cells = [];
-	for (i =0; i < this.cells.length; i++)
+	for (var i =0; i < this.cells.length; i++)
 	    data.cells[i] =  this.cells[i].toJSON();
 	
 	return data;
@@ -625,7 +638,8 @@ var IPython = (function (IPython) {
         cell.attr('tabindex','2');
 	this.celltoolbar = new IPython.CellToolbar(this);
 	//display:inline-block should make divs show up next to eachother according to http://jsfiddle.net/sygL9/
-	cell.css({"background-color":"#99FFFF", "padding-left":"10px", "display":"inline-block"});
+	//cell.css({"background-color":"#99FFFF", "padding-left":"10px", "display":"inline-block"});
+	cell.css({"background-color":"#99FFFF", "padding-left":"10px", "display":"inline-block", "overflow":"hidden"});
 	
         var input_area = $('<div/>').addClass('alts_cell_input border-box-sizing');
 	
@@ -686,11 +700,17 @@ var IPython = (function (IPython) {
     {
 	//populate the normal way and then edit the style of the elements so that they show up side by side
 	IPython.ContainerCell.prototype.fromJSON.apply(this, arguments);
-	
-	var child_cells = this.element.children("div.alt_cell");
-	var widths = 100/child_cells.length + "%";
-	child_cells.css({"width":widths});
+	this.resize_alts();
     };	
+
+
+    AltSetCell.prototype.resize_alts = function()
+    {
+	var child_cells = this.element.children("div.alt_cell");
+	var widths = 1/child_cells.length * 100 - 5 + "%";
+	child_cells.css({"width":widths});
+    }
+    
 
     IPython.AltSetCell = AltSetCell;
     
@@ -715,10 +735,12 @@ var IPython = (function (IPython) {
         var cell = $("<div>").addClass('cell alt_cell border-box-sizing');
         cell.attr('tabindex','2');
 	this.celltoolbar = new IPython.CellToolbar(this);
-	cell.css({"background-color":"#99FFFF", "padding-left":"5px", "float":"left"});
-	
+	cell.css({"background-color":"#99FF55", "padding-left":"5px", "width":"auto", "display":"inline-block", "position":"relative"});
+	var vbox = $('<div/>').addClass("vbox box-flex1");
         var input_area = $('<div/>').addClass('alt_cell_input border-box-sizing');
-	
+	vbox.append(input_area);
+	//cell.append(vbox);
+
         this.code_mirror = CodeMirror(input_area.get(0), {
             indentUnit : 4,
             mode: this.code_mirror_mode,
@@ -734,8 +756,8 @@ var IPython = (function (IPython) {
 	//var render_area = $('<div/>').addClass('task_cell_render border-box-sizing').addClass('rendered_html').attr('tabindex','-1');
 	var render_area = $('<div/>').addClass('alt_cell_render border-box-sizing').addClass('rendered_html');
 	
-	cell.append(input_area).append(render_area);
-	
+	//cell.append(input_area).append(render_area);
+	cell.append(vbox).append(render_area);
 	//we use end_container here and belsewhere so we can use the inherited ContainerCell.pototype.append_cell in all cell types that allow nesting.
 	var end_task = $('<div/>').addClass('end_container').height("30%");
 	cell.append(end_task);

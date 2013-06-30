@@ -177,9 +177,9 @@ var IPython = (function (IPython) {
         });
 	this.element.find('#to_task').click(function () {
             IPython.notebook.to_task();
-        });
-	this.element.find('#to_branchset').click(function () {
-            IPython.notebook.to_branchset();
+        })
+	this.element.find('#to_altset').click(function () {
+            IPython.notebook.to_altset();
         });
         this.element.find('#to_markdown').click(function () {
             IPython.notebook.to_markdown();

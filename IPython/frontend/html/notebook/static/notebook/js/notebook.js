@@ -1101,18 +1101,86 @@ var IPython = (function (IPython) {
     Notebook.prototype.to_task = function (index) {
         var source_cell = this.index_or_selected_cell(index);
 	var source_element = source_cell.element;
-        if(!( source_cell instanceof IPython.TaskCell ) ) {
-	    var parent = source_cell.parent;
-	    var tmpdat = source_cell.toJSON();
-	    var target_cell = parent.insert_cell_below('task', parent.find_cell_index(source_cell));
-	    var targ2 = target_cell.append_cell(tmpdat.cell_type);
-	    targ2.fromJSON(tmpdat);
+	var source_alt, parent, tmpdat, target_cell, targ2;
+	if(!( source_cell instanceof IPython.TaskCell ) ) {
+	    parent = source_cell.parent;
+	    tmpdat = source_cell.toJSON();
+	    target_cell = parent.insert_cell_below('task', parent.find_cell_index(source_cell));
+
+	    if(source_cell instanceof IPython.AltSetCell)
+	    { 
+		for(var i= 0; i < source_cell.cells.length; i++)
+		{
+		    source_alt = source_cell.cells[i];
+		    for(var j =0; j < source_alt.cells.length; j++)
+		    {
+			tmpdat = source_alt.cells[j].toJSON();
+			targ2 = target_cell.append_cell(tmpdat.cell_type);
+			targ2.fromJSON(tmpdat);
+		    }
+		}   
+	    } else {
+		targ2 = target_cell.append_cell(tmpdat.cell_type);
+		targ2.fromJSON(tmpdat);
+	    }
 	    source_element.remove();
 	    this.set_dirty(true);
 	    targ2.select();
-	    //this.select(this.find_cell_index(targ2));
 	};
     };
+
+
+    /**
+     * Turn a cell into an alternatives set.
+     * If the cell is not a container, or onebranch == true, a single 
+     * alternative (branch) is created containing a copy of the cell
+     * otherwise each cell contained within the cell being converted is placed
+     * in its own alternative
+     * 
+     * @method to_altset
+     * @param {Number} [index] A cell's index
+     * @param {Boolean} [onebranch] Whether a copy of the source cell should
+     *    be placed in a single branch or spread across multiple branches if
+     *    possible
+     */
+    Notebook.prototype.to_altset = function (index, onebranch) {
+        var source_cell = this.index_or_selected_cell(index);
+	var source_element = source_cell.element;
+        if(!( source_cell instanceof IPython.AltSetCell ) ) {
+	    var parent = source_cell.parent;
+	    var tmpdat = source_cell.toJSON();
+	    var target_cell = parent.insert_cell_below('altset', parent.find_cell_index(source_cell));
+	    var targalt;
+	    var targ2;
+	    if(onebranch || typeof source_cell.cells == 'undefined' || source_cell.cells.length < 2)
+	    {
+		//add two branches both of which contain copies of the contents of the source element
+		for(var k = 0; k<2; k++)
+		{
+		    tmpdat = source_cell.toJSON();
+		    targalt = target_cell.append_cell("alt");
+		    
+		    targ2 = targalt.append_cell(tmpdat.cell_type);
+		    targ2.fromJSON(tmpdat);
+		}
+		
+	    } else {
+		for(var i =0; i < source_cell.cells.length; i++)
+		{
+		    tmpdat = source_cell.cells[i].toJSON;
+		    targalt = target_cell.append_cell("alt");
+		    targ2 = targalt.append_cell(tmpdat.cell_type);
+		    targ2.fromJSON(tmpdat);
+		}
+	
+	    }
+	    source_element.remove();
+	    this.set_dirty(true);
+	    targ2.select();
+	};
+    };
+
+
 
 
     /**
