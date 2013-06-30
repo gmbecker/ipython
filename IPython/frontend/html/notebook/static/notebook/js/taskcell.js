@@ -170,11 +170,9 @@ var IPython = (function (IPython) {
 	//If index===ncells it now uses places the element before div.endspace, instead of after index-1. 
 	//This allows a workaround that prevents problems with indexing/insertion in nonlinear documents 
 	if (ncells === 0 || ncells === index) {
-            // special case append if empty
-            //this.element.find('div.end_space').before(element);
-	    this.element.find('div.end_container').before(element);
+            this.element.children('div.end_container').before(element);
         } else if ( ncells === index ) {
-	    //XXX superceded by above. Why did they have this as a special extra case?
+	    //XXX GB superceded by above. Why did they have this as a special extra case?
             // special case append it the end, but not empty 
             this.get_cell_element(index-1).after(element);
         } else if (this.is_valid_cell_index(index)) {
@@ -711,6 +709,13 @@ var IPython = (function (IPython) {
 	child_cells.css({"width":widths});
     }
     
+    AltSetCell.prototype.insert_cell_below = function(type, index)
+    {
+	var altcell = this.insert_cell_at_index("alt", index+1);
+	altcell.insert_cell_at_index(type, 0);
+	this.resize_alts();
+	IPython.notebook.set_dirty(true);
+    }
 
     IPython.AltSetCell = AltSetCell;
     
@@ -772,8 +777,15 @@ var IPython = (function (IPython) {
 	{
 	    cell = this.get_cell(i);
 	    if( cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell || cell instanceof IPython.IntCodeCell)
-		cell.execute();
+		cell.execute( function(text){ return null;} );
 	}
+	var parent = this.parent;
+	var gparent = parent.parent;
+	var pindex = gparent.find_cell_index(parent);
+	if(pindex < gparent.ncells() - 1)
+	    gparent.select(pindex +1);
+	else
+	    gparent.insert_cell_below("code", pindex);
     };
     
     IPython.AltCell = AltCell;

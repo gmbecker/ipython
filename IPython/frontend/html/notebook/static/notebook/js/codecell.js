@@ -238,15 +238,18 @@ var IPython = (function (IPython) {
      * Execute current code cell to the kernel
      * @method execute
      */
-    CodeCell.prototype.execute = function () {
+    CodeCell.prototype.execute = function (set_next_input_fun) {
         this.output_area.clear_output(true, true, true);
         this.set_input_prompt('*');
         this.element.addClass("running");
+	set_next_input_fun = set_next_input_fun || this._handle_set_next_input;
         var callbacks = {
             'execute_reply': $.proxy(this._handle_execute_reply, this),
             'output': $.proxy(this.output_area.handle_output, this.output_area),
             'clear_output': $.proxy(this.output_area.handle_clear_output, this.output_area),
-            'set_next_input': $.proxy(this._handle_set_next_input, this),
+         //   'set_next_input': $.proxy(this._handle_set_next_input, this),
+	    'set_next_input': $.proxy(set_next_input_fun, this),
+	    
             'input_request': $.proxy(this._handle_input_request, this)
         };
         var msg_id = this.kernel.execute(this.get_text(), callbacks, {silent: false});

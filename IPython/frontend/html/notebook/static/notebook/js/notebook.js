@@ -109,8 +109,19 @@ var IPython = (function (IPython) {
         var that = this;
 
         $([IPython.events]).on('set_next_input.Notebook', function (event, data) {
-            var index = that.find_cell_index(data.cell);
-            var new_cell = that.insert_cell_below('code',index);
+	    
+            var cell = data.cell;
+	    var parent = cell.parent;
+	    var index = parent.find_cell_index(cell);
+	    if(parent instanceof IPython.AltCell)
+	    {
+		var tmp = parent;
+		parent = parent.parent;
+		index = parent.find_cell_index(tmp);
+	    }
+ //var index = that.find_cell_index(data.cell);
+            //var new_cell = that.insert_cell_below('code',index);
+	    var new_cell = parent.insert_cell_below('code',index);
             new_cell.set_text(data.text);
             that.dirty = true;
         });
@@ -804,7 +815,8 @@ var IPython = (function (IPython) {
 	var parent = cell.parent;
 	var i = parent.find_cell_index(cell);
 	var ce = cell.element;
-        ce.remove();
+        
+	ce.remove();
 
         if (i === (parent.ncells())) {
             parent.select(i-1);
@@ -815,6 +827,10 @@ var IPython = (function (IPython) {
             this.undelete_index = i;
             this.undelete_below = false;
         };
+	if ( !( parent instanceof IPython.Notebook ) )
+	    parent.cells.splice(i, 1);
+	if(parent instanceof IPython.AltSetCell)
+	    parent.resize_alts();
         this.set_dirty(true);
 	// };
         return this;
