@@ -689,8 +689,10 @@ var IPython = (function (IPython) {
 	//populate the normal way and then edit the style of the elements so that they show up side by side
 	IPython.ContainerCell.prototype.fromJSON.apply(this, arguments);
 	this.resize_alts();
-    };	
+	this.set_most_recently_run();
 
+    };	
+ 
 
     AltSetCell.prototype.resize_alts = function()
     {
@@ -715,11 +717,40 @@ var IPython = (function (IPython) {
 	IPython.notebook.set_dirty(true);
     }
     
-    AltSetCell.prototype.set_most_recently_run = function(index)
+    AltSetCell.prototype.set_most_recently_run = function(cell)
     {
-	this.get_cell_elements().css({"background-color":"#99FF55"});
-	this.get_cell(index).element.css({"background-color":"#5555FF"});
-    }
+//	index = index || this.get_most_recently_run_index();
+	if(! ( typeof cell === 'undefined'))
+	{
+	    var oldcell = this.get_most_recently_run();
+	    if(oldcell)
+		oldcell.most_recent = false;
+	} else {
+	    cell = this.get_most_recently_run();
+	}
+	
+	if(cell)
+	{
+	    this.get_cell_elements().css({"background-color":"#99FF55"});
+	    cell.element.css({"background-color":"#5555FF"});
+	    cell.most_recent = true;
+	}
+    };
+    
+    AltSetCell.prototype.get_most_recently_run = function()
+    {
+	var cell_els = this.get_cell_elements().toArray().filter(function(e) {
+	    
+	    var c = $(e).data("cell");
+	    if(typeof c.most_recent === 'undefined')
+		c.most_recent = false;
+	    return c.most_recent;
+	});
+	if(! cell_els.length)
+	    return undefined;
+	else
+	    return $(cell_els).eq(0).data("cell");
+    };
     
     IPython.AltSetCell = AltSetCell;
     
@@ -730,6 +761,7 @@ var IPython = (function (IPython) {
         this.code_mirror_mode = 'rst';
         this.cell_type = 'alt';
 	this.kernel = kernel || null;
+	this.most_recent = false;
 	
         var that = this
 	
@@ -772,6 +804,24 @@ var IPython = (function (IPython) {
 	cell.append(end_task);
 	this.element = cell;
     };
+
+    AltCell.prototype.fromJSON = function(data)
+    {
+	//populate the normal way and then edit the style of the elements so that they show up side by side
+	IPython.ContainerCell.prototype.fromJSON.apply(this, arguments);
+	this.most_recent = data.most_recent;
+    };	
+    
+    AltCell.prototype.toJSON = function()
+    {
+	//populate the normal way and then edit the style of the elements so that they show up side by side
+	var dat = IPython.ContainerCell.prototype.toJSON.apply(this);
+	dat.most_recent = this.most_recent;
+	return dat;
+    };	
+  
+
+
     
 //    IPython.AltCell = TaskCell
     AltCell.prototype.execute = function(){
@@ -783,19 +833,22 @@ var IPython = (function (IPython) {
 	    if( cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell || cell instanceof IPython.IntCodeCell)
 		cell.execute( function(text){ return null;} );
 	}
-	//reselect this so that Notebook.execute_selected_cell will select the correct next cell
-	this.select();
+
+	var oldrecent = this.parent.get_most_recently_run();
+	//	oldrecent.most_recent = false;
+	//	this.most_recent = true;
+	this.parent.set_most_recently_run(this);
+	//select the parent (AltSetCell) so that Notebook.execute_selected_cell will select the correct next cell
+	this.parent.select();	
 	
-	this.parent.set_most_recently_run(this.parent.find_cell_index(this));
-	
-/*	var parent = this.parent;
-	var gparent = parent.parent;
-	var pindex = gparent.find_cell_index(parent);
+	/*	var parent = this.parent;
+		var gparent = parent.parent;
+		var pindex = gparent.find_cell_index(parent);
 	if(pindex < gparent.ncells() - 1)
-	    gparent.select(pindex +1);
+	gparent.select(pindex +1);
 	else
-	    gparent.insert_cell_below("code", pindex);
-*/
+	gparent.insert_cell_below("code", pindex);
+	*/
     };
     
     IPython.AltCell = AltCell;

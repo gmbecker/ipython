@@ -1714,9 +1714,11 @@ var IPython = (function (IPython) {
             cell.select_all();
         } else {
 	    if(cell instanceof IPython.AltCell)
+	    {
 	   	cell = cell.parent;
-	    that = cell.parent;
-	    cell_index = that.find_cell_index(cell);
+		that = cell.parent;
+		cell_index = that.find_cell_index(cell);
+	    }
 	    if ((cell_index === (that.ncells()-1)) && default_options.add_new) {
                 that.insert_cell_below('code', cell_index);
                 // If we are adding a new cell at the end, scroll down to show it.
