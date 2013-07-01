@@ -838,8 +838,10 @@ var IPython = (function (IPython) {
 	//	oldrecent.most_recent = false;
 	//	this.most_recent = true;
 	this.parent.set_most_recently_run(this);
+	this.parent.resize_alts();
 	//select the parent (AltSetCell) so that Notebook.execute_selected_cell will select the correct next cell
 	this.parent.select();	
+	
 	
 	/*	var parent = this.parent;
 		var gparent = parent.parent;
