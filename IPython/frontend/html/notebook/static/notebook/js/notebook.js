@@ -1008,13 +1008,16 @@ var IPython = (function (IPython) {
 //	var i = this.index_or_selected(index);
  //       if (this.is_valid_cell_index(i)) {
             //var source_element = this.get_cell_element(i);
+	if(!this.is_valid_cell_index(index))
+	    index = undefined;
+	
 	var source_cell = this.index_or_selected_cell(index);
 	var source_element = source_cell.element;
             //var source_cell = source_element.data("cell");
 	var parent = source_cell.parent;
 	var sindex = parent.find_cell_index(source_cell);
 	
-	var target_cell = parent.insert_cell_below('code',i);
+	var target_cell = parent.insert_cell_below('code',sindex);
 	if(source_cell instanceof IPython.IntCodeCell)
 	{
 	    var tmpjson = source_cell.toJSON();
@@ -1080,6 +1083,7 @@ var IPython = (function (IPython) {
 					  var dat = {variable:varname, linenum:linenum, type:ctype};
 					  dat.min = $("#iwidgetmin").val();
 					  dat.max = $("#iwidgetmax").val();
+		                          dat.step = $("#iwidgetstep").val();
 					  target_cell.add_widget(dat);
 		                          source_element.remove();
 		                          that.set_dirty(true);
@@ -1088,7 +1092,7 @@ var IPython = (function (IPython) {
 	    };
 	    IPython.dialog.modal({title:"Add interactivity widget",
 				  body:$("<p/>").html(
-				      "Variable:<input id='iwidgetvar'/><br/>Line Number:<input id='iwidgetlinenum'/><br/> Control Type: <select id='iwidgetctype'><option value='slider'>Slider</option></select><br/> Min Value:<input id='iwidgetmin'/><br/> Max Value:<input id='iwidgetmax'/>"),
+				      "Variable:<input id='iwidgetvar'/><br/>Line Number:<input id='iwidgetlinenum'/><br/> Control Type: <select id='iwidgetctype'><option value='slider'>Slider</option></select><br/> Min Value:<input id='iwidgetmin'/><br/> Max Value:<input id='iwidgetmax'/><br/>Step:<input id='iwidgetstep'/>"),
 				  buttons : {
 				      "Cancel" : {
 					  "click" : function() {
