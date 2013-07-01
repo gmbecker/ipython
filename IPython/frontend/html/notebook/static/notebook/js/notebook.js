@@ -1709,6 +1709,12 @@ var IPython = (function (IPython) {
 	
         if (cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell) {
             cell.execute();
+	    if(that instanceof IPython.AltCell)
+	    {
+		var gp = that.parent;
+		gp.set_most_recently_run(that);
+		gp.resize_alts();
+	    }
         }
         if (default_options.terminal) {
             cell.select_all();
