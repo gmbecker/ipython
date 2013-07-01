@@ -430,21 +430,6 @@ var IPython = (function (IPython) {
 	    var cell_data = null;
 	    var new_cell = null;
 	    var new_cell_objs = new Array(ncells);
-	    /*		for(i =0; i < ncells; i++)
-			{
-			cell_data = new_cells[i];
-			// VERSIONHACK: plaintext -> raw
-			// handle never-released plaintext name for raw cells
-			if (cell_data.cell_type === 'plaintext'){
-			cell_data.cell_type = 'raw';
-			}
-			new_cell_objs[i] = this.append_cell(cell_data.cell_type);
-			}
-			for(j=0; j< ncells; j++)
-			{
-			new_cell_objs[j].fromJSON(new_cells[j]);
-			}
-	    */
 
 	    for (var i=0; i<ncells; i++) {
                 cell_data = new_cells[i];
@@ -456,8 +441,13 @@ var IPython = (function (IPython) {
                 
                 //new_cell = this.insert_cell_below(cell_data.cell_type,i);
 		new_cell = this.append_cell(cell_data.cell_type);
-                new_cell.fromJSON(cell_data);
+               // new_cell.fromJSON(cell_data);
 	    }
+	    for(var j=0; j<ncells; j++)
+	    {
+		new_cell = this.get_cell(j);
+		new_cell.fromJSON(new_cells[j]);
+	    };
 	    //              this.set_rendered(data.rendered || '');
 	    //              this.rendered = false;
 	    //            this.render();
@@ -724,7 +714,13 @@ var IPython = (function (IPython) {
 	this.resize_alts();
 	IPython.notebook.set_dirty(true);
     }
-
+    
+    AltSetCell.prototype.set_most_recently_run = function(index)
+    {
+	this.get_cell_elements().css({"background-color":"#99FF55"});
+	this.get_cell(index).element.css({"background-color":"#5555FF"});
+    }
+    
     IPython.AltSetCell = AltSetCell;
     
     var AltCell = function(kernel)
@@ -790,13 +786,16 @@ var IPython = (function (IPython) {
 	//reselect this so that Notebook.execute_selected_cell will select the correct next cell
 	this.select();
 	
-	var parent = this.parent;
+	this.parent.set_most_recently_run(this.parent.find_cell_index(this));
+	
+/*	var parent = this.parent;
 	var gparent = parent.parent;
 	var pindex = gparent.find_cell_index(parent);
 	if(pindex < gparent.ncells() - 1)
 	    gparent.select(pindex +1);
 	else
 	    gparent.insert_cell_below("code", pindex);
+*/
     };
     
     IPython.AltCell = AltCell;

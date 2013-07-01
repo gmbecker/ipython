@@ -1862,8 +1862,15 @@ var IPython = (function (IPython) {
 		//workaround to make sure things always end up at the end
 		//This is necessary because new_cell.fromJSON can now add more than one cell to the notebook
 		new_cell = this.insert_cell_at_index(cell_data.cell_type, this.ncells());
-                new_cell.fromJSON(cell_data);
+               // new_cell.fromJSON(cell_data);
             };
+	    //We loop twice to avoid a race condition when inserting and populating container cells
+	    for(var j = 0; j < ncells; j++)
+	    {
+		new_cell = this.get_cell(j);
+		new_cell.fromJSON(new_cells[j]);
+	    };
+		
         };
         if (data.worksheets.length > 1) {
             IPython.dialog.modal({
