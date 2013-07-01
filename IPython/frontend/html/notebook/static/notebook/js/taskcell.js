@@ -697,7 +697,7 @@ var IPython = (function (IPython) {
     AltSetCell.prototype.resize_alts = function()
     {
 	var child_cells = this.element.children("div.alt_cell");
-	var widths = 1/child_cells.length * 100 - 5 + "%";
+	var widths = .95/child_cells.length * 100  + "%";
 	child_cells.css({"width":widths});
     }
     
