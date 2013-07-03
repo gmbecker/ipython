@@ -752,6 +752,15 @@ var IPython = (function (IPython) {
 	    return $(cell_els).eq(0).data("cell");
     };
     
+    AltSetCell.prototype.execute = function() {
+
+	var sel_alt = this.get_most_recently_run();
+	sel_alt.execute();
+	this.select();
+    };
+
+    
+
     IPython.AltSetCell = AltSetCell;
     
     var AltCell = function(kernel)
