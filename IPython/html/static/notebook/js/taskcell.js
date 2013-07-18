@@ -645,8 +645,12 @@ var IPython = (function (IPython) {
         // The tabindex=-1 makes this div focusable.
 	//var render_area = $('<div/>').addClass('alts_cell_render border-box-sizing').addClass('rendered_html').attr('tabindex','-1');
 	var render_area = $('<div/>').addClass('alts_cell_render border-box-sizing').addClass('rendered_html');
-	
-	cell.append(input_area).append(render_area);
+
+	var vbox = $('<div/>').addClass('vbox box-flex1');
+	vbox.append(this.celltoolbar.element);
+	vbox.append(input_area).append(render_area)
+	cell.append(vbox);
+//	cell.append(input_area).append(render_area);
 	
 	//we use end_container here and elsewhere so we can use the inherited ContainerCell.pototype.append_cell in all cell types that allow nesting.
 	var end_alts = $('<div/>').addClass('end_container').height("30%");
@@ -696,7 +700,10 @@ var IPython = (function (IPython) {
 
     AltSetCell.prototype.resize_alts = function()
     {
-	var child_cells = this.element.children("div.alt_cell");
+	var child_cells = this.element.children("div.alt_cell").filter(function(index) {
+	    var cell = $(this).data("cell");
+	    return !cell.minimized;
+	});
 	var widths = .95/child_cells.length * 100  + "%";
 	child_cells.css({"width":widths});
     }
@@ -751,6 +758,18 @@ var IPython = (function (IPython) {
 	else
 	    return $(cell_els).eq(0).data("cell");
     };
+
+    AltSetCell.prototype.toggle_alts_display = function() {
+	this.get_cell_elements().map(function(i, e)
+				     {
+					 var c = $(e).data("cell");
+					 if(!c.most_recent)
+					     c.toggle_display(false);
+					 return c;
+				     });
+	this.resize_alts();
+    };
+
     
     AltSetCell.prototype.execute = function() {
 
@@ -771,7 +790,7 @@ var IPython = (function (IPython) {
         this.cell_type = 'alt';
 	this.kernel = kernel || null;
 	this.most_recent = false;
-	
+	this.minimized = false;
         var that = this
 	
         this.element.focusout(
@@ -788,6 +807,8 @@ var IPython = (function (IPython) {
 	cell.css({"background-color":"#99FF55", "padding-left":"5px", "width":"auto", "display":"inline-block", "position":"relative"});
 	var vbox = $('<div/>').addClass("vbox box-flex1");
         var input_area = $('<div/>').addClass('alt_cell_input border-box-sizing');
+
+	vbox.append(this.celltoolbar.element);
 	vbox.append(input_area);
 	//cell.append(vbox);
 
@@ -861,7 +882,18 @@ var IPython = (function (IPython) {
 	gparent.insert_cell_below("code", pindex);
 	*/
     };
-    
+    AltCell.prototype.toggle_display = function(doresize)
+    {
+	this.minimized = !this.minimized;
+	if(this.minimized)
+	    this.element.css({display:"none"});
+	else
+	    this.element.css({display:"inline-block"});
+	if( typeof doresize !== "undefined" && doresize)
+	    this.parent.resize_alts();
+
+    };
+
     IPython.AltCell = AltCell;
     
     return IPython;
