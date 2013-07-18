@@ -38,7 +38,6 @@ import sys
 import tempfile
 from glob import glob
 from shutil import rmtree
-from getopt import getopt
 
 # numpy and rpy2 imports
 
@@ -57,7 +56,7 @@ except ImportError:
 # IPython imports
 
 from IPython.core.displaypub import publish_display_data
-from IPython.core.magic import (Magics, magics_class, cell_magic, line_magic,
+from IPython.core.magic import (Magics, magics_class, line_magic,
                                 line_cell_magic, needs_local_scope)
 from IPython.testing.skipdoctest import skip_doctest
 from IPython.core.magic_arguments import (
@@ -578,16 +577,24 @@ class RMagics(Magics):
         self.r('png("%s/Rplots%%03d.png",%s)' % (tmpd.replace('\\', '/'), png_args))
 
         text_output = ''
-        if line_mode:
-            for line in code.split(';'):
-                text_result, result = self.eval(line)
+        try:
+            if line_mode:
+                for line in code.split(';'):
+                    text_result, result = self.eval(line)
+                    text_output += text_result
+                if text_result:
+                    # the last line printed something to the console so we won't return it
+                    return_output = False
+            else:
+                text_result, result = self.eval(code)
                 text_output += text_result
-            if text_result:
-                # the last line printed something to the console so we won't return it
-                return_output = False
-        else:
-            text_result, result = self.eval(code)
-            text_output += text_result
+        
+        except RInterpreterError as e:
+            print(e.stdout)
+            if not e.stdout.endswith(e.err):
+                print(e.err)
+            rmtree(tmpd)
+            return
 
         self.r('dev.off()')
 

@@ -28,7 +28,7 @@ from IPython.config.application import (
 )
 
 from IPython.utils.traitlets import (
-    Bool, Unicode, Integer, Float, List, Dict
+    Bool, Unicode, Integer, List, Dict
 )
 
 #-----------------------------------------------------------------------------
@@ -72,10 +72,10 @@ class MyApp(Application):
             ))
     
     def init_foo(self):
-        self.foo = Foo(config=self.config)
+        self.foo = Foo(parent=self)
 
     def init_bar(self):
-        self.bar = Bar(config=self.config)
+        self.bar = Bar(parent=self)
 
 
 class TestApplication(TestCase):

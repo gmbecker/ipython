@@ -71,11 +71,11 @@ import re
 import sys
 
 # IPython modules
-from IPython.core.splitinput import split_user_input, LineInfo
 from IPython.utils.py3compat import cast_unicode
 from IPython.core.inputtransformer import (leading_indent,
                                            classic_prompt,
                                            ipy_prompt,
+                                           strip_encoding_cookie,
                                            cellmagic,
                                            assemble_logical_lines,
                                            help_end,
@@ -85,7 +85,7 @@ from IPython.core.inputtransformer import (leading_indent,
                                            assemble_python_lines,
                                            )
 
-# Temporary!
+# These are available in this module for backwards compatibility.
 from IPython.core.inputtransformer import (ESC_SHELL, ESC_SH_CAP, ESC_HELP,
                                         ESC_HELP2, ESC_MAGIC, ESC_MAGIC2,
                                         ESC_QUOTE, ESC_QUOTE2, ESC_PAREN, ESC_SEQUENCES)
@@ -486,16 +486,19 @@ class IPythonInputSplitter(InputSplitter):
         if physical_line_transforms is not None:
             self.physical_line_transforms = physical_line_transforms
         else:
-            self.physical_line_transforms = [leading_indent(),
+            self.physical_line_transforms = [
+                                             leading_indent(),
                                              classic_prompt(),
                                              ipy_prompt(),
+                                             strip_encoding_cookie(),
+                                             cellmagic(end_on_blank_line=line_input_checker),
                                             ]
         
         self.assemble_logical_lines = assemble_logical_lines()
         if logical_line_transforms is not None:
             self.logical_line_transforms = logical_line_transforms
         else:
-            self.logical_line_transforms = [cellmagic(end_on_blank_line=line_input_checker),
+            self.logical_line_transforms = [
                                             help_end(),
                                             escaped_commands(),
                                             assign_from_magic(),

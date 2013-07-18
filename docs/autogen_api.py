@@ -45,6 +45,7 @@ if __name__ == '__main__':
                                         r'\.ipdoctest',
                                         r'\.Gnuplot',
                                         r'\.frontend\.process\.winprocess',
+                                        r'\.frontend',
                                         r'\.Shell',
                                         ]
     
@@ -62,4 +63,4 @@ if __name__ == '__main__':
     docwriter.write_index(outdir, 'gen.rst',
                           relative_to = pjoin('source','api')
                           )
-    print '%d files written' % len(docwriter.written_modules)
+    print ('%d files written' % len(docwriter.written_modules))

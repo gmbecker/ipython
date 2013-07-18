@@ -40,12 +40,12 @@ from IPython.kernel import (
     get_connection_file, get_connection_info, connect_qtconsole
 )
 from IPython.testing.skipdoctest import skip_doctest
-from IPython.utils import io, openpy
+from IPython.utils import openpy
 from IPython.utils.jsonutil import json_clean, encode_images
 from IPython.utils.process import arg_split
 from IPython.utils import py3compat
 from IPython.utils.traitlets import Instance, Type, Dict, CBool, CBytes
-from IPython.utils.warn import warn, error
+from IPython.utils.warn import error
 from IPython.kernel.zmq.displayhook import ZMQShellDisplayHook
 from IPython.kernel.zmq.datapub import ZMQDataPublisher
 from IPython.kernel.zmq.session import extract_header
@@ -503,8 +503,13 @@ class ZMQInteractiveShell(InteractiveShell):
 
     # Over ZeroMQ, GUI control isn't done with PyOS_InputHook as there is no
     # interactive input being read; we provide event loop support in ipkernel
-    from .eventloops import enable_gui
-    enable_gui = staticmethod(enable_gui)
+    @staticmethod
+    def enable_gui(gui):
+        from .eventloops import enable_gui as real_enable_gui
+        try:
+            real_enable_gui(gui)
+        except ValueError as e:
+            raise UsageError("%s" % e)
 
     def init_environment(self):
         """Configure the user's environment.

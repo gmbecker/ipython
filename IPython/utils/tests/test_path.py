@@ -18,7 +18,6 @@ import os
 import shutil
 import sys
 import tempfile
-from io import StringIO
 from contextlib import contextmanager
 
 from os.path import join, abspath, split
@@ -31,7 +30,7 @@ import IPython
 from IPython.testing import decorators as dec
 from IPython.testing.decorators import skip_if_not_win32, skip_win32
 from IPython.testing.tools import make_tempfile, AssertPrints
-from IPython.utils import path, io
+from IPython.utils import path
 from IPython.utils import py3compat
 from IPython.utils.tempdir import TemporaryDirectory
 
@@ -104,7 +103,7 @@ def setup_environment():
 
 
 def teardown_environment():
-    """Restore things that were remebered by the setup_environment function
+    """Restore things that were remembered by the setup_environment function
     """
     (oldenv, os.name, sys.platform, path.get_home_dir, IPython.__file__, old_wd) = oldstuff
     os.chdir(old_wd)
@@ -127,13 +126,14 @@ with_environment = with_setup(setup_environment, teardown_environment)
 def test_get_home_dir_1():
     """Testcase for py2exe logic, un-compressed lib
     """
+    unfrozen = path.get_home_dir()
     sys.frozen = True
 
     #fake filename for IPython.__init__
     IPython.__file__ = abspath(join(HOME_TEST_DIR, "Lib/IPython/__init__.py"))
 
     home_dir = path.get_home_dir()
-    nt.assert_equal(home_dir, abspath(HOME_TEST_DIR))
+    nt.assert_equal(home_dir, unfrozen)
 
 
 @skip_if_not_win32
@@ -141,12 +141,13 @@ def test_get_home_dir_1():
 def test_get_home_dir_2():
     """Testcase for py2exe logic, compressed lib
     """
+    unfrozen = path.get_home_dir()
     sys.frozen = True
     #fake filename for IPython.__init__
     IPython.__file__ = abspath(join(HOME_TEST_DIR, "Library.zip/IPython/__init__.py")).lower()
 
     home_dir = path.get_home_dir(True)
-    nt.assert_equal(home_dir, abspath(HOME_TEST_DIR).lower())
+    nt.assert_equal(home_dir, unfrozen)
 
 
 @with_environment
@@ -404,7 +405,7 @@ def test_get_ipython_package_dir():
 
 
 def test_get_ipython_module_path():
-    ipapp_path = path.get_ipython_module_path('IPython.frontend.terminal.ipapp')
+    ipapp_path = path.get_ipython_module_path('IPython.terminal.ipapp')
     nt.assert_true(os.path.isfile(ipapp_path))
 
 

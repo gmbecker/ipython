@@ -28,8 +28,6 @@ from nose import SkipTest
 
 from IPython.testing.tools import mute_warn
 
-from IPython.utils.traitlets import Unicode
-from IPython.config.configurable import Configurable
 from IPython.config.loader import (
     Config,
     PyFileConfigLoader,
@@ -260,7 +258,7 @@ class TestConfig(TestCase):
         c1 = Config()
         exec 'foo = True' in c1
         self.assertEqual(c1.foo, True)
-        self.assertRaises(ConfigError, setattr, c1, 'ValueError', 10)
+        c1.format = "json"
     
     def test_fromdict(self):
         c1 = Config({'Foo' : {'bar' : 1}})

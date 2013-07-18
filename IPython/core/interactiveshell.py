@@ -55,7 +55,6 @@ from IPython.core.macro import Macro
 from IPython.core.payload import PayloadManager
 from IPython.core.prefilter import PrefilterManager
 from IPython.core.profiledir import ProfileDir
-from IPython.core.pylabtools import pylab_activate
 from IPython.core.prompts import PromptManager
 from IPython.lib.latextools import LaTeXTool
 from IPython.testing.skipdoctest import skip_doctest
@@ -419,13 +418,13 @@ class InteractiveShell(SingletonConfigurable):
     # Tracks any GUI loop loaded for pylab
     pylab_gui_select = None
 
-    def __init__(self, config=None, ipython_dir=None, profile_dir=None,
+    def __init__(self, ipython_dir=None, profile_dir=None,
                  user_module=None, user_ns=None,
                  custom_exceptions=((), None), **kwargs):
 
         # This is where traits with a config_key argument are updated
         # from the values on config.
-        super(InteractiveShell, self).__init__(config=config, **kwargs)
+        super(InteractiveShell, self).__init__(**kwargs)
         self.configurables = [self]
 
         # These are relatively independent and stateless
@@ -651,7 +650,7 @@ class InteractiveShell(SingletonConfigurable):
             io.stderr = io.IOStream(sys.stderr)
 
     def init_prompts(self):
-        self.prompt_manager = PromptManager(shell=self, config=self.config)
+        self.prompt_manager = PromptManager(shell=self, parent=self)
         self.configurables.append(self.prompt_manager)
         # Set system prompts, so that scripts can decide if they are running
         # interactively.
@@ -660,24 +659,24 @@ class InteractiveShell(SingletonConfigurable):
         sys.ps3 = 'Out: '
 
     def init_display_formatter(self):
-        self.display_formatter = DisplayFormatter(config=self.config)
+        self.display_formatter = DisplayFormatter(parent=self)
         self.configurables.append(self.display_formatter)
 
     def init_display_pub(self):
-        self.display_pub = self.display_pub_class(config=self.config)
+        self.display_pub = self.display_pub_class(parent=self)
         self.configurables.append(self.display_pub)
 
     def init_data_pub(self):
         if not self.data_pub_class:
             self.data_pub = None
             return
-        self.data_pub = self.data_pub_class(config=self.config)
+        self.data_pub = self.data_pub_class(parent=self)
         self.configurables.append(self.data_pub)
 
     def init_displayhook(self):
         # Initialize displayhook, set in/out prompts and printing system
         self.displayhook = self.displayhook_class(
-            config=self.config,
+            parent=self,
             shell=self,
             cache_size=self.cache_size,
         )
@@ -688,7 +687,7 @@ class InteractiveShell(SingletonConfigurable):
 
     def init_latextool(self):
         """Configure LaTeXTool."""
-        cfg = LaTeXTool.instance(config=self.config)
+        cfg = LaTeXTool.instance(parent=self)
         if cfg not in self.configurables:
             self.configurables.append(cfg)
 
@@ -819,53 +818,32 @@ class InteractiveShell(SingletonConfigurable):
     # Things related to the "main" module
     #-------------------------------------------------------------------------
 
-    def new_main_mod(self,ns=None):
+    def new_main_mod(self, filename):
         """Return a new 'main' module object for user code execution.
-        """
-        main_mod = self._user_main_module
-        init_fakemod_dict(main_mod,ns)
-        return main_mod
-
-    def cache_main_mod(self,ns,fname):
-        """Cache a main module's namespace.
-
-        When scripts are executed via %run, we must keep a reference to the
-        namespace of their __main__ module (a FakeModule instance) around so
-        that Python doesn't clear it, rendering objects defined therein
-        useless.
+        
+        ``filename`` should be the path of the script which will be run in the
+        module. Requests with the same filename will get the same module, with
+        its namespace cleared.
+        
+        When scripts are executed via %run, we must keep a reference to their
+        __main__ module (a FakeModule instance) around so that Python doesn't
+        clear it, rendering references to module globals useless.
 
         This method keeps said reference in a private dict, keyed by the
-        absolute path of the module object (which corresponds to the script
-        path).  This way, for multiple executions of the same script we only
-        keep one copy of the namespace (the last one), thus preventing memory
-        leaks from old references while allowing the objects from the last
-        execution to be accessible.
-
-        Note: we can not allow the actual FakeModule instances to be deleted,
-        because of how Python tears down modules (it hard-sets all their
-        references to None without regard for reference counts).  This method
-        must therefore make a *copy* of the given namespace, to allow the
-        original module's __dict__ to be cleared and reused.
-
-
-        Parameters
-        ----------
-          ns : a namespace (a dict, typically)
-
-          fname : str
-            Filename associated with the namespace.
-
-        Examples
-        --------
-
-        In [10]: import IPython
-
-        In [11]: _ip.cache_main_mod(IPython.__dict__,IPython.__file__)
-
-        In [12]: IPython.__file__ in _ip._main_ns_cache
-        Out[12]: True
+        absolute path of the script. This way, for multiple executions of the
+        same script we only keep one copy of the namespace (the last one),
+        thus preventing memory leaks from old references while allowing the
+        objects from the last execution to be accessible.
         """
-        self._main_ns_cache[os.path.abspath(fname)] = ns.copy()
+        filename = os.path.abspath(filename)
+        try:
+            main_mod = self._main_mod_cache[filename]
+        except KeyError:
+            main_mod = self._main_mod_cache[filename] = FakeModule()
+        else:
+            init_fakemod_dict(main_mod)
+        
+        return main_mod
 
     def clear_main_mod_cache(self):
         """Clear the cache of main modules.
@@ -877,17 +855,17 @@ class InteractiveShell(SingletonConfigurable):
 
         In [15]: import IPython
 
-        In [16]: _ip.cache_main_mod(IPython.__dict__,IPython.__file__)
+        In [16]: m = _ip.new_main_mod(IPython.__file__)
 
-        In [17]: len(_ip._main_ns_cache) > 0
+        In [17]: len(_ip._main_mod_cache) > 0
         Out[17]: True
 
         In [18]: _ip.clear_main_mod_cache()
 
-        In [19]: len(_ip._main_ns_cache) == 0
+        In [19]: len(_ip._main_mod_cache) == 0
         Out[19]: True
         """
-        self._main_ns_cache.clear()
+        self._main_mod_cache.clear()
 
     #-------------------------------------------------------------------------
     # Things related to debugging
@@ -1017,10 +995,7 @@ class InteractiveShell(SingletonConfigurable):
         # and clear_main_mod_cache() methods for details on use.
 
         # This is the cache used for 'main' namespaces
-        self._main_ns_cache = {}
-        # And this is the single instance of FakeModule whose __dict__ we keep
-        # copying and clearing for reuse on each %run
-        self._user_main_module = FakeModule()
+        self._main_mod_cache = {}
 
         # A table holding all the namespaces IPython deals with, so that
         # introspection facilities can search easily.
@@ -1174,8 +1149,8 @@ class InteractiveShell(SingletonConfigurable):
         
         Note that this does not include the displayhook, which also caches
         objects from the output."""
-        return [self.user_ns, self.user_global_ns,
-                self._user_main_module.__dict__] + self._main_ns_cache.values()
+        return [self.user_ns, self.user_global_ns] + \
+               [m.__dict__ for m in self._main_mod_cache.values()]
 
     def reset(self, new_session=True):
         """Clear all internal namespaces, and attempt to release references to
@@ -1218,9 +1193,6 @@ class InteractiveShell(SingletonConfigurable):
         # Flush the private list of module references kept for script
         # execution protection
         self.clear_main_mod_cache()
-
-        # Clear out the namespace from the last %run
-        self.new_main_mod()
 
     def del_var(self, varname, by_name=False):
         """Delete a variable from the various namespaces, so that, as
@@ -1511,7 +1483,7 @@ class InteractiveShell(SingletonConfigurable):
 
     def init_history(self):
         """Sets up the command history, and starts regular autosaves."""
-        self.history_manager = HistoryManager(shell=self, config=self.config)
+        self.history_manager = HistoryManager(shell=self, parent=self)
         self.configurables.append(self.history_manager)
 
     #-------------------------------------------------------------------------
@@ -1699,7 +1671,13 @@ class InteractiveShell(SingletonConfigurable):
         
         return etype, value, tb
     
-
+    def show_usage_error(self, exc):
+        """Show a short message for UsageErrors
+        
+        These are special exceptions that shouldn't show a traceback.
+        """
+        self.write_err("UsageError: %s" % exc)
+    
     def showtraceback(self,exc_tuple = None,filename=None,tb_offset=None,
                       exception_only=False):
         """Display the exception that just occurred.
@@ -1725,7 +1703,7 @@ class InteractiveShell(SingletonConfigurable):
                 # line, there may be SyntaxError cases with imported code.
                 self.showsyntaxerror(filename)
             elif etype is UsageError:
-                self.write_err("UsageError: %s" % value)
+                self.show_usage_error(value)
             else:
                 if exception_only:
                     stb = ['An exception has occurred, use %tb to see '
@@ -1943,7 +1921,7 @@ class InteractiveShell(SingletonConfigurable):
                                      global_namespace=self.user_global_ns,
                                      alias_table=self.alias_manager.alias_table,
                                      use_readline=self.has_readline,
-                                     config=self.config,
+                                     parent=self,
                                      )
         self.configurables.append(self.Completer)
 
@@ -2038,7 +2016,7 @@ class InteractiveShell(SingletonConfigurable):
     def init_magics(self):
         from IPython.core import magics as m
         self.magics_manager = magic.MagicsManager(shell=self,
-                                   config=self.config,
+                                   parent=self,
                                    user_magics=m.UserMagics(self))
         self.configurables.append(self.magics_manager)
 
@@ -2299,7 +2277,7 @@ class InteractiveShell(SingletonConfigurable):
     #-------------------------------------------------------------------------
 
     def init_alias(self):
-        self.alias_manager = AliasManager(shell=self, config=self.config)
+        self.alias_manager = AliasManager(shell=self, parent=self)
         self.configurables.append(self.alias_manager)
         self.ns_table['alias'] = self.alias_manager.alias_table,
 
@@ -2308,7 +2286,7 @@ class InteractiveShell(SingletonConfigurable):
     #-------------------------------------------------------------------------
 
     def init_extension_manager(self):
-        self.extension_manager = ExtensionManager(shell=self, config=self.config)
+        self.extension_manager = ExtensionManager(shell=self, parent=self)
         self.configurables.append(self.extension_manager)
 
     #-------------------------------------------------------------------------
@@ -2316,7 +2294,7 @@ class InteractiveShell(SingletonConfigurable):
     #-------------------------------------------------------------------------
 
     def init_payload(self):
-        self.payload_manager = PayloadManager(config=self.config)
+        self.payload_manager = PayloadManager(parent=self)
         self.configurables.append(self.payload_manager)
 
     #-------------------------------------------------------------------------
@@ -2324,7 +2302,7 @@ class InteractiveShell(SingletonConfigurable):
     #-------------------------------------------------------------------------
 
     def init_prefilter(self):
-        self.prefilter_manager = PrefilterManager(shell=self, config=self.config)
+        self.prefilter_manager = PrefilterManager(shell=self, parent=self)
         self.configurables.append(self.prefilter_manager)
         # Ultimately this will be refactored in the new interpreter code, but
         # for now, we should expose the main prefilter method (there's legacy
@@ -2859,15 +2837,17 @@ class InteractiveShell(SingletonConfigurable):
 
     def enable_gui(self, gui=None):
         raise NotImplementedError('Implement enable_gui in a subclass')
-
-    def enable_pylab(self, gui=None, import_all=True, welcome_message=False):
-        """Activate pylab support at runtime.
-
-        This turns on support for matplotlib, preloads into the interactive
-        namespace all of numpy and pylab, and configures IPython to correctly
-        interact with the GUI event loop.  The GUI backend to be used can be
-        optionally selected with the optional ``gui`` argument.
-
+    
+    def enable_matplotlib(self, gui=None):
+        """Enable interactive matplotlib and inline figure support.
+        
+        This takes the following steps:
+        
+        1. select the appropriate eventloop and matplotlib backend
+        2. set up matplotlib for interactive use with that backend
+        3. configure formatters for inline figure display
+        4. enable the selected gui eventloop
+        
         Parameters
         ----------
         gui : optional, string
@@ -2879,28 +2859,73 @@ class InteractiveShell(SingletonConfigurable):
           make sense in all contexts, for example a terminal ipython can't
           display figures inline.
         """
-        from IPython.core.pylabtools import mpl_runner
+        from IPython.core import pylabtools as pt
+        gui, backend = pt.find_gui_and_backend(gui, self.pylab_gui_select)
+    
+        if gui != 'inline':
+            # If we have our first gui selection, store it
+            if self.pylab_gui_select is None:
+                self.pylab_gui_select = gui
+            # Otherwise if they are different
+            elif gui != self.pylab_gui_select:
+                print ('Warning: Cannot change to a different GUI toolkit: %s.'
+                        ' Using %s instead.' % (gui, self.pylab_gui_select))
+                gui, backend = pt.find_gui_and_backend(self.pylab_gui_select)
+        
+        pt.activate_matplotlib(backend)
+        pt.configure_inline_support(self, backend)
+        
+        # Now we must activate the gui pylab wants to use, and fix %run to take
+        # plot updates into account
+        self.enable_gui(gui)
+        self.magics_manager.registry['ExecutionMagics'].default_runner = \
+            pt.mpl_runner(self.safe_execfile)
+        
+        return gui, backend
+
+    def enable_pylab(self, gui=None, import_all=True, welcome_message=False):
+        """Activate pylab support at runtime.
+
+        This turns on support for matplotlib, preloads into the interactive
+        namespace all of numpy and pylab, and configures IPython to correctly
+        interact with the GUI event loop.  The GUI backend to be used can be
+        optionally selected with the optional ``gui`` argument.
+        
+        This method only adds preloading the namespace to InteractiveShell.enable_matplotlib.
+
+        Parameters
+        ----------
+        gui : optional, string
+          If given, dictates the choice of matplotlib GUI backend to use
+          (should be one of IPython's supported backends, 'qt', 'osx', 'tk',
+          'gtk', 'wx' or 'inline'), otherwise we use the default chosen by
+          matplotlib (as dictated by the matplotlib build-time options plus the
+          user's matplotlibrc configuration file).  Note that not all backends
+          make sense in all contexts, for example a terminal ipython can't
+          display figures inline.
+        import_all : optional, bool, default: True
+          Whether to do `from numpy import *` and `from pylab import *`
+          in addition to module imports.
+        welcome_message : deprecated
+          This argument is ignored, no welcome message will be displayed.
+        """
+        from IPython.core.pylabtools import import_pylab
+        
+        gui, backend = self.enable_matplotlib(gui)
+        
         # We want to prevent the loading of pylab to pollute the user's
         # namespace as shown by the %who* magics, so we execute the activation
         # code in an empty namespace, and we update *both* user_ns and
         # user_ns_hidden with this information.
         ns = {}
-        try:
-            gui = pylab_activate(ns, gui, import_all, self, welcome_message=welcome_message)
-        except KeyError:
-            error("Backend %r not supported" % gui)
-            return
-        except ImportError:
-            error("pylab mode doesn't work as matplotlib could not be found." + \
-                  "\nIs it installed on the system?")
-            return
+        import_pylab(ns, import_all)
+        # warn about clobbered names
+        ignored = set(["__builtins__"])
+        both = set(ns).intersection(self.user_ns).difference(ignored)
+        clobbered = [ name for name in both if self.user_ns[name] is not ns[name] ]
         self.user_ns.update(ns)
         self.user_ns_hidden.update(ns)
-        # Now we must activate the gui pylab wants to use, and fix %run to take
-        # plot updates into account
-        self.enable_gui(gui)
-        self.magics_manager.registry['ExecutionMagics'].default_runner = \
-        mpl_runner(self.safe_execfile)
+        return gui, backend, clobbered
 
     #-------------------------------------------------------------------------
     # Utilities

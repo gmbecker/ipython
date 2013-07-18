@@ -134,7 +134,7 @@ def find_package_data():
     
     # walk notebook resources:
     cwd = os.getcwd()
-    os.chdir(os.path.join('IPython', 'frontend', 'html', 'notebook'))
+    os.chdir(os.path.join('IPython', 'html'))
     static_walk = list(os.walk('static'))
     os.chdir(cwd)
     static_data = []
@@ -146,10 +146,13 @@ def find_package_data():
 
     package_data = {
         'IPython.config.profile' : ['README*', '*/*.py'],
+        'IPython.core.tests' : ['*.png', '*.jpg'],
         'IPython.testing' : ['*.txt'],
         'IPython.testing.plugin' : ['*.txt'],
-        'IPython.frontend.html.notebook' : ['templates/*'] + static_data,
-        'IPython.frontend.qt.console' : ['resources/icon/*.svg'],
+        'IPython.html' : ['templates/*'] + static_data,
+        'IPython.qt.console' : ['resources/icon/*.svg'],
+        'IPython.nbconvert' : ['templates/*.tpl', 'templates/latex/*.tplx',
+            'templates/latex/skeleton/*.tplx', 'templates/skeleton/*']
     }
     return package_data
 
@@ -312,14 +315,14 @@ def find_scripts(entry_points=False, suffix=''):
     """
     if entry_points:
         console_scripts = [s % suffix for s in [
-            'ipython%s = IPython.frontend.terminal.ipapp:launch_new_instance',
+            'ipython%s = IPython:start_ipython',
             'pycolor%s = IPython.utils.PyColorize:main',
             'ipcontroller%s = IPython.parallel.apps.ipcontrollerapp:launch_new_instance',
             'ipengine%s = IPython.parallel.apps.ipengineapp:launch_new_instance',
             'iplogger%s = IPython.parallel.apps.iploggerapp:launch_new_instance',
             'ipcluster%s = IPython.parallel.apps.ipclusterapp:launch_new_instance',
             'iptest%s = IPython.testing.iptest:main',
-            'irunner%s = IPython.lib.irunner:main'
+            'irunner%s = IPython.lib.irunner:main',
         ]]
         gui_scripts = []
         scripts = dict(console_scripts=console_scripts, gui_scripts=gui_scripts)
@@ -351,7 +354,8 @@ def check_for_dependencies():
         print_line, print_raw, print_status,
         check_for_sphinx, check_for_pygments,
         check_for_nose, check_for_pexpect,
-        check_for_pyzmq, check_for_readline
+        check_for_pyzmq, check_for_readline,
+        check_for_jinja2
     )
     print_line()
     print_raw("BUILDING IPYTHON")
@@ -369,6 +373,7 @@ def check_for_dependencies():
     check_for_pexpect()
     check_for_pyzmq()
     check_for_readline()
+    check_for_jinja2()
 
 #---------------------------------------------------------------------------
 # VCS related

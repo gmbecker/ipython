@@ -13,7 +13,6 @@
 
 from __future__ import absolute_import
 
-import zmq
 from zmq.eventloop import ioloop
 from zmq.eventloop.zmqstream import ZMQStream
 
@@ -48,7 +47,7 @@ class IOLoopKernelManager(KernelManager):
             if self._restarter is None:
                 self._restarter = IOLoopKernelRestarter(
                     kernel_manager=self, loop=self.loop,
-                    config=self.config, log=self.log
+                    parent=self, log=self.log
                 )
             self._restarter.start()
 

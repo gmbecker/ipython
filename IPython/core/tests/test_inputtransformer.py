@@ -1,5 +1,4 @@
 import tokenize
-import unittest
 import nose.tools as nt
 
 from IPython.testing import tools as tt
@@ -65,6 +64,13 @@ syntax = \
         ('x=1', 'x=1'), # normal input is unmodified
         ('    ','    '),  # blank lines are kept intact
         ],
+
+       strip_encoding_cookie =
+       [
+        ('# -*- encoding: utf-8 -*-', ''),
+        ('# coding: latin-1', ''),
+       ],
+
 
        # Tests for the escape transformer to leave normal code alone
        escaped_noesc =
@@ -180,6 +186,10 @@ syntax_ml = \
           ('123','123'),
           ('... 456"""','... 456"""'),
           ],
+         [('>>> def f(x):', 'def f(x):'),
+          ('...', ''),
+          ('...     return x', '    return x'),
+          ],
         ],
 
        ipy_prompt =
@@ -199,6 +209,20 @@ syntax_ml = \
           ('   ...: 456"""','   ...: 456"""'),
           ],
          ],
+
+       strip_encoding_cookie =
+       [
+        [
+            ('# -*- coding: utf-8 -*-', ''),
+            ('foo', 'foo'),
+        ],
+        [
+            ('#!/usr/bin/env python', '#!/usr/bin/env python'),
+            ('# -*- coding: latin-1 -*-', ''),
+            # only the first-two lines
+            ('# -*- coding: latin-1 -*-', '# -*- coding: latin-1 -*-'),
+        ],
+       ],
 
        multiline_datastructure_prompt =
        [ [('>>> a = [1,','a = [1,'),
@@ -234,6 +258,9 @@ syntax_ml = \
          [(u'%%bar 123', None),
           (u'hello', None),
           (None , u_fmt("get_ipython().run_cell_magic({u}'bar', {u}'123', {u}'hello')")),
+          ],
+         [(u'a=5', 'a=5'),
+          (u'%%cellmagic', '%%cellmagic'),
           ],
        ],
        
@@ -287,6 +314,11 @@ def test_ipy_prompt():
     tt.check_pairs(transform_and_reset(ipt.ipy_prompt), syntax['ipy_prompt'])
     for example in syntax_ml['ipy_prompt']:
         transform_checker(example, ipt.ipy_prompt)
+
+def test_coding_cookie():
+    tt.check_pairs(transform_and_reset(ipt.strip_encoding_cookie), syntax['strip_encoding_cookie'])
+    for example in syntax_ml['strip_encoding_cookie']:
+        transform_checker(example, ipt.strip_encoding_cookie)
 
 def test_assemble_logical_lines():
     tests = \

@@ -21,7 +21,6 @@ import os
 from shutil import copyfile
 import sys
 
-from IPython.core.error import UsageError
 from IPython.config.configurable import Configurable
 from IPython.utils.traitlets import Instance
 from IPython.utils.py3compat import PY3
@@ -47,7 +46,7 @@ class ExtensionManager(Configurable):
     that point, including defining new magic and aliases, adding new
     components, etc.
     
-    You can also optionaly define an :func:`unload_ipython_extension(ipython)`
+    You can also optionally define an :func:`unload_ipython_extension(ipython)`
     function, which will be called if the user unloads or reloads the extension.
     The extension manager will only call :func:`load_ipython_extension` again
     if the extension is reloaded.
@@ -61,8 +60,8 @@ class ExtensionManager(Configurable):
 
     shell = Instance('IPython.core.interactiveshell.InteractiveShellABC')
 
-    def __init__(self, shell=None, config=None):
-        super(ExtensionManager, self).__init__(shell=shell, config=config)
+    def __init__(self, shell=None, **kwargs):
+        super(ExtensionManager, self).__init__(shell=shell, **kwargs)
         self.shell.on_trait_change(
             self._on_ipython_dir_changed, 'ipython_dir'
         )

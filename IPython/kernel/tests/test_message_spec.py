@@ -8,8 +8,6 @@
 #-----------------------------------------------------------------------------
 
 import re
-import sys
-import time
 from subprocess import PIPE
 from Queue import Empty
 
@@ -17,9 +15,7 @@ import nose.tools as nt
 
 from IPython.kernel import KernelManager
 
-
 from IPython.testing import decorators as dec
-from IPython.utils import io
 from IPython.utils.traitlets import (
     HasTraits, TraitError, Bool, Unicode, Dict, Integer, List, Enum, Any,
 )
@@ -36,6 +32,10 @@ def setup():
     KC.start_channels()
     
     # wait for kernel to be ready
+    try:
+        msg = KC.iopub_channel.get_msg(block=True, timeout=10)
+    except Empty:
+        pass
     KC.execute("pass")
     KC.get_shell_msg(block=True, timeout=5)
     flush_channels()

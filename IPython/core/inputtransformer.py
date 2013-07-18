@@ -3,8 +3,9 @@ import functools
 import re
 from StringIO import StringIO
 
-from IPython.core.splitinput import split_user_input, LineInfo
+from IPython.core.splitinput import LineInfo
 from IPython.utils import tokenize2
+from IPython.utils.openpy import cookie_comment_re
 from IPython.utils.tokenize2 import generate_tokens, untokenize, TokenError
 
 #-----------------------------------------------------------------------------
@@ -71,7 +72,7 @@ class StatelessInputTransformer(InputTransformer):
         self.func = func
     
     def __repr__(self):
-        return "StatelessInputTransformer(func={!r})".format(self.func)
+        return "StatelessInputTransformer(func={0!r})".format(self.func)
     
     def push(self, line):
         """Send a line of input to the transformer, returning the
@@ -90,7 +91,7 @@ class CoroutineInputTransformer(InputTransformer):
         next(self.coro)
     
     def __repr__(self):
-        return "CoroutineInputTransformer(coro={!r})".format(self.coro)
+        return "CoroutineInputTransformer(coro={0!r})".format(self.coro)
     
     def push(self, line):
         """Send a line of input to the transformer, returning the
@@ -226,6 +227,8 @@ def _tr_help(line_info):
 def _tr_magic(line_info):
     "Translate lines escaped with: %"
     tpl = '%sget_ipython().magic(%r)'
+    if line_info.line.startswith(ESC_MAGIC2):
+        return line_info.line
     cmd = ' '.join([line_info.ifun, line_info.the_rest]).strip()
     return tpl % (line_info.pre, cmd)
 
@@ -271,7 +274,8 @@ _help_end_re = re.compile(r"""(%{0,2}
                               [a-zA-Z_*][\w*]*        # Variable name
                               (\.[a-zA-Z_*][\w*]*)*   # .etc.etc
                               )
-                              (\?\??)$                # ? or ??""",
+                              (\?\??)$                # ? or ??
+                              """,
                               re.VERBOSE)
 
 def has_comment(src):
@@ -327,7 +331,14 @@ def cellmagic(end_on_blank_line=False):
     line = ''
     while True:
         line = (yield line)
-        if (not line) or (not line.startswith(ESC_MAGIC2)):
+        # consume leading empty lines
+        while not line:
+            line = (yield line)
+        
+        if not line.startswith(ESC_MAGIC2):
+            # This isn't a cell magic, idle waiting for reset then start over
+            while line is not None:
+                line = (yield line)
             continue
         
         if cellmagic_help_re.match(line):
@@ -381,13 +392,16 @@ def _strip_prompts(prompt_re):
 @CoroutineInputTransformer.wrap
 def classic_prompt():
     """Strip the >>>/... prompts of the Python interactive shell."""
-    prompt_re = re.compile(r'^(>>> |^\.\.\. )')
+    # FIXME: non-capturing version (?:...) usable?
+    prompt_re = re.compile(r'^(>>> ?|\.\.\. ?)')
     return _strip_prompts(prompt_re)
 
 @CoroutineInputTransformer.wrap
 def ipy_prompt():
     """Strip IPython's In [1]:/...: prompts."""
-    prompt_re = re.compile(r'^(In \[\d+\]: |^\ \ \ \.\.\.+: )')
+    # FIXME: non-capturing version (?:...) usable?
+    # FIXME: r'^(In \[\d+\]: | {3}\.{3,}: )' clearer?
+    prompt_re = re.compile(r'^(In \[\d+\]: |\ \ \ \.\.\.+: )')
     return _strip_prompts(prompt_re)
 
 
@@ -417,6 +431,30 @@ def leading_indent():
             # No leading spaces - wait for reset
             while line is not None:
                 line = (yield line)
+
+
+@CoroutineInputTransformer.wrap
+def strip_encoding_cookie():
+    """Remove encoding comment if found in first two lines
+    
+    If the first or second line has the `# coding: utf-8` comment,
+    it will be removed.
+    """
+    line = ''
+    while True:
+        line = (yield line)
+        # check comment on first two lines
+        for i in range(2):
+            if line is None:
+                break
+            if cookie_comment_re.match(line):
+                line = (yield "")
+            else:
+                line = (yield line)
+        
+        # no-op on the rest of the cell
+        while line is not None:
+            line = (yield line)
 
 
 assign_system_re = re.compile(r'(?P<lhs>(\s*)([\w\.]+)((\s*,\s*[\w\.]+)*))'

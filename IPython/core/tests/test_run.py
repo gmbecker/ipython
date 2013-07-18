@@ -244,7 +244,6 @@ class TestMagicRunSimple(tt.TempFileMixin):
             err = None
         tt.ipexec_validate(self.fname, 'object A deleted', err)
     
-    @dec.skip_known_failure 
     def test_aggressive_namespace_cleanup(self):
         """Test that namespace cleanup is not too aggressive GH-238
 
@@ -253,16 +252,33 @@ class TestMagicRunSimple(tt.TempFileMixin):
         class secondtmp(tt.TempFileMixin): pass
         empty = secondtmp()
         empty.mktmp('')
+        # On Windows, the filename will have \users in it, so we need to use the
+        # repr so that the \u becomes \\u.
         src = ("ip = get_ipython()\n"
                "for i in range(5):\n"
                "   try:\n"
-               "       ip.magic('run %s')\n"
+               "       ip.magic(%r)\n"
                "   except NameError as e:\n"
-               "       print i;break\n" % empty.fname)
-        self.mktmp(py3compat.doctest_refactor_print(src))
+               "       print(i)\n"
+               "       break\n" % ('run ' + empty.fname))
+        self.mktmp(src)
         _ip.magic('run %s' % self.fname)
         _ip.run_cell('ip == get_ipython()')
-        nt.assert_equal(_ip.user_ns['i'], 5)
+        nt.assert_equal(_ip.user_ns['i'], 4)
+    
+    def test_run_second(self):
+        """Test that running a second file doesn't clobber the first, gh-3547
+        """
+        self.mktmp("avar = 1\n"
+                   "def afunc():\n"
+                   "  return avar\n")
+
+        empty = tt.TempFileMixin()
+        empty.mktmp("")
+        
+        _ip.magic('run %s' % self.fname)
+        _ip.magic('run %s' % empty.fname)
+        nt.assert_equal(_ip.user_ns['afunc'](), 1)
 
     @dec.skip_win32
     def test_tclass(self):

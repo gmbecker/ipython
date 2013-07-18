@@ -30,7 +30,7 @@ import sys
 
 from IPython.external import argparse
 from IPython.utils.path import filefind, get_ipython_dir
-from IPython.utils import py3compat, text, warn
+from IPython.utils import py3compat, warn
 from IPython.utils.encoding import DEFAULT_ENCODING
 
 #-----------------------------------------------------------------------------
@@ -173,10 +173,6 @@ class Config(dict):
             return dict.__getitem__(self, key)
 
     def __setitem__(self, key, value):
-        # Don't allow names in __builtin__ to be modified.
-        if hasattr(builtin_mod, key):
-            raise ConfigError('Config variable names cannot have the same name '
-                              'as a Python builtin: %s' % key)
         if self._is_section_key(key):
             if not isinstance(value, Config):
                 raise ValueError('values whose keys begin with an uppercase '
@@ -498,8 +494,6 @@ class KeyValueConfigLoader(CommandLineConfigLoader):
             or dicts.  When the flag is triggered, The config is loaded as
             `self.config.update(cfg)`.
         """
-        from IPython.config.configurable import Configurable
-
         self.clear()
         if argv is None:
             argv = self.argv

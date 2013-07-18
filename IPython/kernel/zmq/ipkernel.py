@@ -25,7 +25,7 @@ import uuid
 
 from datetime import datetime
 from signal import (
-        signal, getsignal, default_int_handler, SIGINT, SIG_IGN
+        signal, default_int_handler, SIGINT
 )
 
 # System library imports
@@ -37,11 +37,10 @@ from zmq.eventloop.zmqstream import ZMQStream
 from IPython.config.configurable import Configurable
 from IPython.core.error import StdinNotImplementedError
 from IPython.core import release
-from IPython.utils import io
 from IPython.utils import py3compat
 from IPython.utils.jsonutil import json_clean
 from IPython.utils.traitlets import (
-    Any, Instance, Float, Dict, CaselessStrEnum, List, Set, Integer, Unicode,
+    Any, Instance, Float, Dict, List, Set, Integer, Unicode,
     Type
 )
 
@@ -141,7 +140,7 @@ class Kernel(Configurable):
         super(Kernel, self).__init__(**kwargs)
 
         # Initialize the InteractiveShell subclass
-        self.shell = self.shell_class.instance(config=self.config,
+        self.shell = self.shell_class.instance(parent=self,
             profile_dir = self.profile_dir,
             user_module = self.user_module,
             user_ns     = self.user_ns,
@@ -770,7 +769,7 @@ class Kernel(Configurable):
             else:
                 break
         try:
-            value = reply['content']['value']
+            value = py3compat.unicode_to_str(reply['content']['value'])
         except:
             self.log.error("Got bad raw_input reply: ")
             self.log.error("%s", parent)

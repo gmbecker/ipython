@@ -19,12 +19,14 @@ from __future__ import absolute_import
 #-----------------------------------------------------------------------------
 
 import os
+import pipes
 import re
 import sys
 import tempfile
 
 from contextlib import contextmanager
 from io import StringIO
+from subprocess import Popen, PIPE
 
 try:
     # These tools are used by parts of the runtime, so we make the nose
@@ -36,7 +38,7 @@ except ImportError:
     has_nose = False
 
 from IPython.config.loader import Config
-from IPython.utils.process import find_cmd, getoutputerror
+from IPython.utils.process import getoutputerror
 from IPython.utils.text import list_strings
 from IPython.utils.io import temp_pyfile, Tee
 from IPython.utils import py3compat
@@ -157,7 +159,7 @@ def default_config():
 def ipexec(fname, options=None):
     """Utility to call 'ipython filename'.
 
-    Starts IPython witha minimal and safe configuration to make startup as fast
+    Starts IPython with a minimal and safe configuration to make startup as fast
     as possible.
 
     Note that this starts IPython in a subprocess!
@@ -182,17 +184,22 @@ def ipexec(fname, options=None):
                     '--PromptManager.in2_template=""',
                     '--PromptManager.out_template=""'
     ]
-    cmdargs = ' '.join(default_argv() + prompt_opts + options)
+    cmdargs = default_argv() + prompt_opts + options
 
     _ip = get_ipython()
     test_dir = os.path.dirname(__file__)
-
-    ipython_cmd = find_cmd('ipython3' if py3compat.PY3 else 'ipython')
+    
+    # FIXME: remove workaround for 2.6 support
+    if sys.version_info[:2] > (2,6):
+        ipython_cmd = [sys.executable, "-m", "IPython"]
+    else:
+        ipython_cmd = ["ipython"]
     # Absolute path for filename
     full_fname = os.path.join(test_dir, fname)
-    full_cmd = '%s %s %s' % (ipython_cmd, cmdargs, full_fname)
-    #print >> sys.stderr, 'FULL CMD:', full_cmd # dbg
-    out, err = getoutputerror(full_cmd)
+    full_cmd = ipython_cmd + cmdargs + [full_fname]
+    p = Popen(full_cmd, stdout=PIPE, stderr=PIPE)
+    out, err = p.communicate()
+    out, err = py3compat.bytes_to_str(out), py3compat.bytes_to_str(err)
     # `import readline` causes 'ESC[?1034h' to be output sometimes,
     # so strip that out before doing comparisons
     if out:

@@ -61,6 +61,11 @@ This line is evaluated in Python, so simple expressions are allowed, e.g.::
 `--C.a='range(3)'` For setting C.a=[0,1,2].
 """.strip() # trim newlines of front and back
 
+# sys.argv can be missing, for example when python is embedded. See the docs
+# for details: http://docs.python.org/2/c-api/intro.html#embedding-python
+if not hasattr(sys, "argv"):
+    sys.argv = [""]
+
 subcommand_description = """
 Subcommands are launched as `{app} cmd [args]`. For information on using
 subcommand 'cmd', do: `{app} cmd -h`.
@@ -165,7 +170,7 @@ class Application(SingletonConfigurable):
     def _log_format_changed(self, name, old, new):
         """Change the log formatter when log_format is set."""
         _log_handler = self.log.handlers[0]
-        _log_formatter = LevelFormatter(new, datefmt=self._log_datefmt)
+        _log_formatter = LevelFormatter(new, datefmt=self.log_datefmt)
         _log_handler.setFormatter(_log_formatter)
 
     log = Instance(logging.Logger)
@@ -395,7 +400,7 @@ class Application(SingletonConfigurable):
         # clear existing instances
         self.__class__.clear_instance()
         # instantiate
-        self.subapp = subapp.instance()
+        self.subapp = subapp.instance(config=self.config)
         # and initialize subapp
         self.subapp.initialize(argv)
     
@@ -522,6 +527,16 @@ class Application(SingletonConfigurable):
     def exit(self, exit_status=0):
         self.log.debug("Exiting application: %s" % self.name)
         sys.exit(exit_status)
+
+    @classmethod
+    def launch_instance(cls, argv=None, **kwargs):
+        """Launch a global instance of this Application
+        
+        If a global instance already exists, this reinitializes and starts it
+        """
+        app = cls.instance(**kwargs)
+        app.initialize(argv)
+        app.start()
 
 #-----------------------------------------------------------------------------
 # utility functions, for convenience

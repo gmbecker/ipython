@@ -82,10 +82,6 @@ else:
 #-----------------------------------------------------------------------------
 
 
-#: The default config file name for this application
-default_config_file_name = u'ipcontroller_config.py'
-
-
 _description = """Start the IPython controller for parallel computing.
 
 The IPython controller provides a gateway between the IPython engines and
@@ -156,7 +152,6 @@ class IPControllerApp(BaseParallelApplication):
     name = u'ipcontroller'
     description = _description
     examples = _examples
-    config_file_name = Unicode(default_config_file_name)
     classes = [ProfileDir, Session, HubFactory, TaskScheduler, HeartMonitor, DictDB] + real_dbs
     
     # change default to True
@@ -528,8 +523,7 @@ class IPControllerApp(BaseParallelApplication):
             self.cleanup_connection_files()
             
 
-
-def launch_new_instance():
+def launch_new_instance(*args, **kwargs):
     """Create and run the IPython controller"""
     if sys.platform == 'win32':
         # make sure we don't get called from a multiprocessing subprocess
@@ -545,9 +539,7 @@ def launch_new_instance():
         if p.name != 'MainProcess':
             # we are a subprocess, don't start another Controller!
             return
-    app = IPControllerApp.instance()
-    app.initialize()
-    app.start()
+    return IPControllerApp.launch_instance(*args, **kwargs)
 
 
 if __name__ == '__main__':

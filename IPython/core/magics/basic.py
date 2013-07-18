@@ -20,11 +20,10 @@ import sys
 from pprint import pformat
 
 # Our own packages
-from IPython.core import magic_arguments
+from IPython.core import magic_arguments, page
 from IPython.core.error import UsageError
 from IPython.core.magic import Magics, magics_class, line_magic, magic_escapes
 from IPython.utils.text import format_screen, dedent, indent
-from IPython.core import magic_arguments, page
 from IPython.testing.skipdoctest import skip_doctest
 from IPython.utils.ipstruct import Struct
 from IPython.utils.path import unquote_filename
@@ -271,7 +270,7 @@ of any of them, type %magic_name?, e.g. '%cd?'.
 Currently the magic system has the following functions:""",
        magic_docs,
        "Summary of magic functions (from %slsmagic):" % magic_escapes['line'],
-       self._lsmagic(),
+       str(self.lsmagic()),
        ]
         page.page('\n'.join(out))
 
