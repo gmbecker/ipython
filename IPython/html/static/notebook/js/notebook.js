@@ -832,7 +832,8 @@ var IPython = (function (IPython) {
       //  var cell = this.get_selected_cell();
 	var cell = this.index_or_selected_cell(index);
         this.undelete_backup = cell.toJSON();
-<<<<<<< HEAD:IPython/frontend/html/notebook/static/notebook/js/notebook.js
+
+	
         $('#undelete_cell').removeClass('ui-state-disabled');
       //  if (this.is_valid_cell_index(i)) {
 	
@@ -852,6 +853,7 @@ var IPython = (function (IPython) {
             parent.select(i);
             this.undelete_index = i;
             this.undelete_below = false;
+/*
 =======
         $('#undelete_cell').removeClass('disabled');
         if (this.is_valid_cell_index(i)) {
@@ -869,6 +871,7 @@ var IPython = (function (IPython) {
             $([IPython.events]).trigger('delete.Cell', {'cell': cell, 'index': i});
             this.set_dirty(true);
 >>>>>>> cef875d791797dad5faaec8cf89205b35d078d99:IPython/html/static/notebook/js/notebook.js
+*/
         };
 	if ( !( parent instanceof IPython.Notebook ) )
 	    parent.cells.splice(i, 1);
