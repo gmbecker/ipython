@@ -513,7 +513,7 @@ var IPython = (function (IPython) {
         var cell = $("<div></div>").addClass('cell task_cell border-box-sizing');
         cell.attr('tabindex','2');
 	this.celltoolbar = new IPython.CellToolbar(this);
-	cell.css({"background-color":"#99FFFF", "padding-left":"10px"});
+	cell.css({"background-color":"#CCFFFF", "padding-left":"10px"});
 	
         var input_area = $('<div/>').addClass('task_cell_input border-box-sizing');
 	var vbox = $('<div/>').addClass('vbox box-flex1');
@@ -627,7 +627,7 @@ var IPython = (function (IPython) {
 	this.celltoolbar = new IPython.CellToolbar(this);
 	//display:inline-block should make divs show up next to eachother according to http://jsfiddle.net/sygL9/
 	//cell.css({"background-color":"#99FFFF", "padding-left":"10px", "display":"inline-block"});
-	cell.css({"background-color":"#99FFFF", "padding-left":"10px", "display":"inline-block", "overflow":"hidden"});
+	cell.css({"background-color":"#CCFFFF", "padding-left":"10px", "display":"inline-block", "overflow":"hidden"});
 	
         var input_area = $('<div/>').addClass('alts_cell_input border-box-sizing');
 	
@@ -738,8 +738,8 @@ var IPython = (function (IPython) {
 	
 	if(cell)
 	{
-	    this.get_cell_elements().css({"background-color":"#99FF55"});
-	    cell.element.css({"background-color":"#5555FF"});
+	    this.get_cell_elements().css({"background-color":"#AAFFFF"});
+	    cell.element.css({"background-color":"#A0FF77"});
 	    cell.most_recent = true;
 	}
     };
