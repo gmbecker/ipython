@@ -595,6 +595,7 @@ var IPython = (function (IPython) {
 	
         this.cell_type = 'altset';
 	this.kernel = kernel || null;
+	this.showing_alts = true;
 	
         var that = this
 	
@@ -739,7 +740,11 @@ var IPython = (function (IPython) {
 	if(cell)
 	{
 	    this.get_cell_elements().css({"background-color":"#AAFFFF"});
-	    cell.element.css({"background-color":"#A0FF77"});
+	    if(this.showing_alts)
+
+		cell.element.css({"background-color":"#A0FF77"});
+	    else
+		cell.element.css({"background-color":"#CCFFFF"});
 	    cell.most_recent = true;
 	}
     };
@@ -767,7 +772,18 @@ var IPython = (function (IPython) {
 					     c.toggle_display(false);
 					 return c;
 				     });
+	
+	var cell = this.get_most_recently_run();
+	this.showing_alts = !this.showing_alts;
+	if(this.showing_alts)
+	    
+	    cell.element.css({"background-color":"#A0FF77"});
+	else
+	    cell.element.css({"background-color":"#CCFFFF"});
+
 	this.resize_alts();
+
+
     };
 
     
