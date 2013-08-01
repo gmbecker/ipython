@@ -844,6 +844,8 @@ var IPython = (function (IPython) {
 	var ce = cell.element;
         
 	ce.remove();
+	if ( !( parent instanceof IPython.Notebook ) )
+	    parent.cells.splice(i, 1);
 
         if (i === (parent.ncells())) {
             parent.select(i-1);
@@ -873,8 +875,6 @@ var IPython = (function (IPython) {
 >>>>>>> cef875d791797dad5faaec8cf89205b35d078d99:IPython/html/static/notebook/js/notebook.js
 */
         };
-	if ( !( parent instanceof IPython.Notebook ) )
-	    parent.cells.splice(i, 1);
 	if(parent instanceof IPython.AltSetCell)
 	    parent.resize_alts();
         this.set_dirty(true);
@@ -1055,40 +1055,45 @@ var IPython = (function (IPython) {
 //	var i = this.index_or_selected(index);
  //       if (this.is_valid_cell_index(i)) {
             //var source_element = this.get_cell_element(i);
-	if(!this.is_valid_cell_index(index))
-	    index = undefined;
+//	if(!this.is_valid_cell_index(index))
+//	    index = undefined;
 	
 	var source_cell = this.index_or_selected_cell(index);
-	var source_element = source_cell.element;
+	if (!(source_cell instanceof IPython.CodeCell)) {
+	    var source_element = source_cell.element;
             //var source_cell = source_element.data("cell");
-	var parent = source_cell.parent;
-	var sindex = parent.find_cell_index(source_cell);
-	
-	var target_cell = parent.insert_cell_below('code',sindex);
-	if(source_cell instanceof IPython.IntCodeCell)
-	{
-	    var tmpjson = source_cell.toJSON();
-	    //I believe there is a hardcoded check for this in CodeCell.fromJSON...
-	    tmpjson.cell_type = "code";
-	    target_cell.fromJSON(tmpjson);
-	    target_cell.code_mirror.clearHistory();
-	    source_element.remove();
-	    this.set_dirty(true);
+	    var parent = source_cell.parent;
+	    var sindex = parent.find_cell_index(source_cell);
 	    
-	} else if (!(source_cell instanceof IPython.CodeCell)) {
+	    var target_cell = parent.insert_cell_below('code',sindex);
+	    if(source_cell instanceof IPython.IntCodeCell)
+	    {
+		var tmpjson = source_cell.toJSON();
+		//I believe there is a hardcoded check for this in CodeCell.fromJSON...
+		tmpjson.cell_type = "code";
+		target_cell.fromJSON(tmpjson);
+		target_cell.code_mirror.clearHistory();
+		//	    source_element.remove();
+
+		
+	    } else {
                 
-            var text = source_cell.get_text();
-            if (text === source_cell.placeholder) {
-                text = '';
-            }
-            target_cell.set_text(text);
-            // make this value the starting point, so that we can only undo
-            // to this state, instead of a blank cell
-            target_cell.code_mirror.clearHistory();
-            source_element.remove();
-            this.set_dirty(true);
- //       };
-	};
+		var text = source_cell.get_text();
+		if (text === source_cell.placeholder) {
+                    text = '';
+		}
+		target_cell.set_text(text);
+		// make this value the starting point, so that we can only undo
+		// to this state, instead of a blank cell
+		target_cell.code_mirror.clearHistory();
+		//           source_element.remove();
+		this.set_dirty(true);
+		//       };
+	    };
+	    source_cell.select();
+	    IPython.notebook.delete_cell();
+	    this.set_dirty(true);
+	}
     };
 
 
@@ -1101,41 +1106,47 @@ var IPython = (function (IPython) {
     Notebook.prototype.to_intcode = function (index) {
         //var i = this.index_or_selected(index);
 	var source_cell = this.index_or_selected_cell(index);
-      //  if (this.is_valid_cell_index(i)) {
-          //  var source_element = this.get_cell_element(i);
-          //  var source_cell = source_element.data("cell");
-        var source_element = source_cell.element;
-	var parent = source_cell.parent;
-	if (!(source_cell instanceof IPython.CodeCell)) {
-	//	this.to_code(i);
-	    this.to_code();
-	    //we should be guaranteed it is selected from the to_code call...
-	    source_element = this.get_selected_cell();
-	    source_cell = source_element.data("cell");
-	}
+	if(! (source_cell instanceof IPython.IntCodeCell))
+	{
+
+	    //  if (this.is_valid_cell_index(i)) {
+            //  var source_element = this.get_cell_element(i);
+            //  var source_cell = source_element.data("cell");
+            var source_element = source_cell.element;
 	    
-	var target_cell = parent.insert_cell_below("interactivecode", parent.find_cell_index( source_cell ) );
+	    if (!(source_cell instanceof IPython.CodeCell)) {
+		//	this.to_code(i);
+		this.to_code();
+		//we should be guaranteed it is selected from the to_code call...
+		source_cell = this.get_selected_cell();
+		source_element = source_cell.element;
+	    }
+	    var parent = source_cell.parent;	    
+	    var target_cell = parent.insert_cell_below("interactivecode", parent.find_cell_index( source_cell ) );
 	    target_cell.code_mirror.clearHistory();
 	    var tmpdat = source_cell.toJSON();
 	    target_cell.fromJSON(tmpdat);
-	    target_cell.cell_type = "interactivecode";
-	   // target_cell.content = source_cell.content;
-	   // target_cell.outputs
-
+	target_cell.cell_type = "interactivecode";
+	    // target_cell.content = source_cell.content;
+	    // target_cell.outputs
+	    
 	    var that = this;
 	    var fun =  function() {
-					  var varname = $("#iwidgetvar").val();
-					  var linenum = $("#iwidgetlinenum").val();
-					  var ctype = $("#iwidgetctype").val();	      
-					  var dat = {variable:varname, linenum:linenum, type:ctype};
-					  dat.min = $("#iwidgetmin").val();
-					  dat.max = $("#iwidgetmax").val();
-		                          dat.step = $("#iwidgetstep").val();
-					  target_cell.add_widget(dat);
-		                          source_element.remove();
-		                          that.set_dirty(true);
-		                          //that.select(i);
-		                          target_cell.select();
+		var varname = $("#iwidgetvar").val();
+		var linenum = $("#iwidgetlinenum").val();
+		var ctype = $("#iwidgetctype").val();	      
+		var dat = {variable:varname, linenum:linenum, type:ctype};
+		dat.min = $("#iwidgetmin").val();
+		dat.max = $("#iwidgetmax").val();
+		dat.step = $("#iwidgetstep").val();
+		target_cell.add_widget(dat);
+	    //		                          source_element.remove();
+		source_cell.select();
+		IPython.notebook.delete_cell();
+		
+		that.set_dirty(true);
+		//that.select(i);
+		//		                          target_cell.select();
 	    };
 	    IPython.dialog.modal({title:"Add interactivity widget",
 				  body:$("<p/>").html(
@@ -1151,9 +1162,9 @@ var IPython = (function (IPython) {
 				      }
 				  }
 				 });
-				      
-	   // this.set_dirty(true);
-//    };
+	    
+		
+	};
     };
 	    
 
@@ -1190,9 +1201,12 @@ var IPython = (function (IPython) {
 		targ2 = target_cell.append_cell(tmpdat.cell_type);
 		targ2.fromJSON(tmpdat);
 	    }
-	    source_element.remove();
-	    this.set_dirty(true);
+//	    source_element.remove();
+	    source_cell.select();
+	    this.delete_cell();
 	    targ2.select();
+	    this.set_dirty(true);
+
 	};
     };
 
@@ -1241,7 +1255,9 @@ var IPython = (function (IPython) {
 		}
 	
 	    }
-	    source_element.remove();
+//	    source_element.remove();
+	    source_cell.select()
+	    this.delete_cell();
 	    this.set_dirty(true);
 	    targ2.select();
 	};
@@ -1272,7 +1288,10 @@ var IPython = (function (IPython) {
             // make this value the starting point, so that we can only undo
             // to this state, instead of a blank cell
             target_cell.code_mirror.clearHistory();
-            source_element.remove();
+//            source_element.remove();
+	    source_cell.select();
+	    this.delete_cell();
+	    
             this.set_dirty(true);
 	};
     
@@ -1300,7 +1319,9 @@ var IPython = (function (IPython) {
             // make this value the starting point, so that we can only undo
             // to this state, instead of a blank cell
             target_cell.code_mirror.clearHistory();
-            source_element.remove();
+            //source_element.remove();
+	    source_cell.select();
+	    this.delete_cell();
             this.set_dirty(true);
         };
     };
@@ -1332,7 +1353,9 @@ var IPython = (function (IPython) {
             // make this value the starting point, so that we can only undo
             // to this state, instead of a blank cell
             target_cell.code_mirror.clearHistory();
-            source_element.remove();
+//            source_element.remove();
+	    source_cell.select();
+	    this.delete();
             this.set_dirty(true);
         };
         $([IPython.events]).trigger('selected_cell_type_changed.Notebook',

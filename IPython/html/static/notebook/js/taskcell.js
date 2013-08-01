@@ -116,8 +116,9 @@ var IPython = (function (IPython) {
                 cell.render();
                 that.select(that.find_cell_index(cell));
                 that.set_dirty(true);
+		IPython.notebook.set_dirty(true);
 		cell.parent = that;
-		that.cells.push(cell);
+//		that.cells.push(cell);
             }
         }
         return cell;
@@ -182,6 +183,7 @@ var IPython = (function (IPython) {
 	    return false;
         }
 
+	this.cells.splice(index, 0, $(element).data("cell"));
 	
 
         if (this.undelete_index !== null && index <= this.undelete_index) {
@@ -311,6 +313,18 @@ var IPython = (function (IPython) {
 	IPython.Cell.prototype.select.apply(cell);
 	cell.code_mirror.refresh();
         cell.code_mirror.focus();
+
+	if (cell.cell_type === 'heading') {
+            $([IPython.events]).trigger('selected_cell_type_changed.Notebook',
+					{'cell_type':cell.cell_type,level:cell.level}
+				       );
+        } else {
+            $([IPython.events]).trigger('selected_cell_type_changed.Notebook',
+					{'cell_type':cell.cell_type}
+				       );
+        };
+     
+
     };
 
     ContainerCell.prototype.select_next = function() {
