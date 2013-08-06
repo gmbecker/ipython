@@ -50,8 +50,6 @@ import numpy as np
 import rpy2.rinterface as ri
 import rpy2.robjects as ro
 
-
-
 try:
     from rpy2.robjects import pandas2ri
     pandas2ri.activate()
@@ -190,7 +188,7 @@ class RMagics(Magics):
         self.Rconverter = Rconverter
 
   
-    def caching_eval(self, line):
+    def caching_eval(self, line, cache_random):
         '''
         A version of eval with caching using the RCacheSuite package
         Caching depends on both the text of the code and the variables used by the code.
@@ -217,7 +215,7 @@ class RMagics(Magics):
                 #  ri.baseenv['library']("RCacheSuite")
                 ro.r("suppressPackageStartupMessages(library(RCacheSuite))")
                 ro.r("x_rpynotebookcache <- cacheClass$new( base_dir= './r_caches/')")
-                value = ro.r("evalWithCache('%s', cache = x_rpynotebookcache, showRetVal = TRUE)" %line)
+                value = ro.r("evalWithCache('%s', cache = x_rpynotebookcache, cacheRand=%s)" %(line, str(cache_random).upper() ))
                 ro.r("x_rpynotebookcache$to_disk()")
         except (ri.RRuntimeError, ValueError) as exception:
             warning_or_other_msg = self.flush() # otherwise next return seems to have copy of error
@@ -236,10 +234,15 @@ class RMagics(Magics):
         old_writeconsole = ri.get_writeconsole()
         ri.set_writeconsole(self.write_console)
         try:
-            value = ri.baseenv['eval'](ri.parse(line))
+#            value = ri.baseenv['eval'](ri.parse(line))
+            res = ro.r("withVisible({%s})" % line)
+            value = res[0] #value
+      
         except (ri.RRuntimeError, ValueError) as exception:
             warning_or_other_msg = self.flush() # otherwise next return seems to have copy of error
             raise RInterpreterError(line, str_to_unicode(str(exception)), warning_or_other_msg)
+        if ro.conversion.ri2py(res[1])[0]:
+            ro.r.show(value)      
         text_output = self.flush()
         ri.set_writeconsole(old_writeconsole)
         return text_output, value
@@ -736,6 +739,12 @@ class RMagics(Magics):
         help='Background of png plotting device sent as an argument to *png* in R.'
         )
     @argument(
+        '--cacherandom',
+        help='Cache results in cases where randomness is detected.',
+        action='store_true',
+        default=False
+        )
+    @argument(
         '-n', '--noreturn',
         help='Force the magic to not return anything.',
         action='store_true',
@@ -756,7 +765,7 @@ class RMagics(Magics):
         ~GB
         '''
 
-        args = parse_argstring(self.R, line)
+        args = parse_argstring(self.Rcaching, line)
 
         # arguments 'code' in line are prepended to
         # the cell lines
@@ -805,13 +814,13 @@ class RMagics(Magics):
         try:
             if line_mode:
                 for line in code.split(';'):
-                    text_result, result = self.caching_eval(line)
+                    text_result, result = self.caching_eval(line, args.cacherandom)
                     text_output += text_result
                 if text_result:
                     # the last line printed something to the console so we won't return it
                     return_output = False
             else:
-                text_result, result = self.caching_eval(code)
+                text_result, result = self.caching_eval(code, args.cacherandom)
                 text_output += text_result
         
         except RInterpreterError as e:
