@@ -460,9 +460,17 @@ class Client(HasTraits):
         ssh_kwargs = dict(keyfile=sshkey, password=password, paramiko=paramiko)
 
         # configure and construct the session
-        extra_args['packer'] = cfg['pack']
-        extra_args['unpacker'] = cfg['unpack']
-        extra_args['key'] = cast_bytes(cfg['exec_key'])
+        try:
+            extra_args['packer'] = cfg['pack']
+            extra_args['unpacker'] = cfg['unpack']
+            extra_args['key'] = cast_bytes(cfg['key'])
+            extra_args['signature_scheme'] = cfg['signature_scheme']
+        except KeyError as exc:
+            msg = '\n'.join([
+                "Connection file is invalid (missing '{}'), possibly from an old version of IPython.",
+                "If you are reusing connection files, remove them and start ipcontroller again."
+            ])
+            raise ValueError(msg.format(exc.message))
         
         self.session = Session(**extra_args)
 
@@ -853,6 +861,7 @@ class Client(HasTraits):
             # ignore IOPub messages with no parent.
             # Caused by print statements or warnings from before the first execution.
             if not parent:
+                idents,msg = self.session.recv(sock, mode=zmq.NOBLOCK)
                 continue
             msg_id = parent['msg_id']
             content = msg['content']
@@ -1377,9 +1386,11 @@ class Client(HasTraits):
         block = self.block if block is None else block
         if indices_or_msg_ids is None:
             indices_or_msg_ids = -1
-
+        
+        single_result = False
         if not isinstance(indices_or_msg_ids, (list,tuple)):
             indices_or_msg_ids = [indices_or_msg_ids]
+            single_result = True
 
         theids = []
         for id in indices_or_msg_ids:
@@ -1391,6 +1402,11 @@ class Client(HasTraits):
 
         local_ids = filter(lambda msg_id: msg_id in self.outstanding or msg_id in self.results, theids)
         remote_ids = filter(lambda msg_id: msg_id not in local_ids, theids)
+        
+        # given single msg_id initially, get_result shot get the result itself,
+        # not a length-one list
+        if single_result:
+            theids = theids[0]
 
         if remote_ids:
             ar = AsyncHubResult(self, msg_ids=theids)

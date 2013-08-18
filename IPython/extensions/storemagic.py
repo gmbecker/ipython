@@ -33,7 +33,7 @@ from IPython.testing.skipdoctest import skip_doctest
 #-----------------------------------------------------------------------------
 # Functions and classes
 #-----------------------------------------------------------------------------
-    
+
 def restore_aliases(ip):
     staliases = ip.db.get('stored_aliases', {})
     for k,v in staliases.items():
@@ -88,7 +88,10 @@ class StoreMagics(Magics):
 
           ville@badger:~$ ipython
           In [1]: l
-          Out[1]: ['hello', 10, 'world']
+          NameError: name 'l' is not defined
+          In [2]: %store -r
+          In [3]: l
+          Out[3]: ['hello', 10, 'world']
 
         Usage:
 
@@ -98,8 +101,10 @@ class StoreMagics(Magics):
                                 to disk
         * ``%store -d spam``  - Remove the variable and its value from storage
         * ``%store -z``       - Remove all variables from storage
-        * ``%store -r``       - Refresh all variables from store (delete
+        * ``%store -r``       - Refresh all variables from store (overwrite
                                 current vals)
+        * ``%store -r spam bar`` - Refresh specified variables from store
+                                   (delete current val)
         * ``%store foo >a.txt``  - Store value of foo to new file a.txt
         * ``%store foo >>a.txt`` - Append value of foo to file a.txt
 
@@ -133,8 +138,16 @@ class StoreMagics(Magics):
                 del db[k]
 
         elif 'r' in opts:
-            refresh_variables(ip)
-
+            if args:
+                for arg in args:
+                    try:
+                        obj = db['autorestore/' + arg]
+                    except KeyError:
+                        print "no stored variable %s" % arg
+                    else:
+                        ip.user_ns[arg] = obj
+            else:
+                restore_data(ip)
 
         # run without arguments -> list variables & values
         elif not args:

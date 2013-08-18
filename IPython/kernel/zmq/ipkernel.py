@@ -25,7 +25,7 @@ import uuid
 
 from datetime import datetime
 from signal import (
-        signal, getsignal, default_int_handler, SIGINT, SIG_IGN
+        signal, default_int_handler, SIGINT
 )
 
 # System library imports
@@ -37,11 +37,10 @@ from zmq.eventloop.zmqstream import ZMQStream
 from IPython.config.configurable import Configurable
 from IPython.core.error import StdinNotImplementedError
 from IPython.core import release
-from IPython.utils import io
 from IPython.utils import py3compat
 from IPython.utils.jsonutil import json_clean
 from IPython.utils.traitlets import (
-    Any, Instance, Float, Dict, CaselessStrEnum, List, Set, Integer, Unicode,
+    Any, Instance, Float, Dict, List, Set, Integer, Unicode,
     Type
 )
 
@@ -141,7 +140,7 @@ class Kernel(Configurable):
         super(Kernel, self).__init__(**kwargs)
 
         # Initialize the InteractiveShell subclass
-        self.shell = self.shell_class.instance(config=self.config,
+        self.shell = self.shell_class.instance(parent=self,
             profile_dir = self.profile_dir,
             user_module = self.user_module,
             user_ns     = self.user_ns,
@@ -275,6 +274,9 @@ class Kernel(Configurable):
 
         for s in self.shell_streams:
             s.on_recv(make_dispatcher(s), copy=False)
+
+        # publish idle status
+        self._publish_status('starting')
     
     def do_one_iteration(self):
         """step eventloop just once"""
@@ -743,7 +745,16 @@ class Kernel(Configurable):
         # Flush output before making the request.
         sys.stderr.flush()
         sys.stdout.flush()
-
+        # flush the stdin socket, to purge stale replies
+        while True:
+            try:
+                self.stdin_socket.recv_multipart(zmq.NOBLOCK)
+            except zmq.ZMQError as e:
+                if e.errno == zmq.EAGAIN:
+                    break
+                else:
+                    raise
+        
         # Send the input request.
         content = json_clean(dict(prompt=prompt))
         self.session.send(self.stdin_socket, u'input_request', content, parent,
@@ -755,10 +766,13 @@ class Kernel(Configurable):
                 ident, reply = self.session.recv(self.stdin_socket, 0)
             except Exception:
                 self.log.warn("Invalid Message:", exc_info=True)
+            except KeyboardInterrupt:
+                # re-raise KeyboardInterrupt, to truncate traceback
+                raise KeyboardInterrupt
             else:
                 break
         try:
-            value = reply['content']['value']
+            value = py3compat.unicode_to_str(reply['content']['value'])
         except:
             self.log.error("Got bad raw_input reply: ")
             self.log.error("%s", parent)
