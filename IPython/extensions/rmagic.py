@@ -13,6 +13,10 @@ Usage
 
 {R_DOC}
 
+``%Rcaching``
+
+{RCACHING_DOC}
+
 ``%Rpush``
 
 {RPUSH_DOC}
@@ -45,6 +49,7 @@ import numpy as np
 
 import rpy2.rinterface as ri
 import rpy2.robjects as ro
+
 try:
     from rpy2.robjects import pandas2ri
     pandas2ri.activate()
@@ -182,6 +187,48 @@ class RMagics(Magics):
         self.pyconverter = pyconverter
         self.Rconverter = Rconverter
 
+  
+    def caching_eval(self, line, cache_random):
+        '''
+        A version of eval with caching using the RCacheSuite package
+        Caching depends on both the text of the code and the variables used by the code.
+        This means that running a code cell can safely sometimes return a cached result
+        without new execution of the code. This will not be the default currently.
+
+        No caching is done by default if code with random elements is detected. 
+        If cache_random is True, caching is performed regardless of whether
+        randomness is present in the code.
+        
+        Randomness is detected by comparing the .Random.seed R variable
+        before and after code evaluation. This will detect code leveraging 
+        most basic methods of generating random numbers (rnorm, runif, etc), 
+        but is not guaranteed to detect more exotic RNGs, such as those 
+        implemented in non-core R packages which don't make use of .Random.seed. 
+        See ?set.seed in R
+        
+        '''
+      
+        old_writeconsole = ri.get_writeconsole()
+        ri.set_writeconsole(self.write_console)
+        try:
+            havecache = ro.r.exists("x_rpynotebookcache")
+            if havecache != True:
+                #  ri.baseenv['library']("RCacheSuite")
+                ro.r("suppressPackageStartupMessages(library(RCacheSuite))")
+                ro.r("x_rpynotebookcache <- cacheClass$new( base_dir= './r_caches/')")
+            value = ro.r("evalWithCache('%s', cache = x_rpynotebookcache, cacheRand=%s)" %(line, str(cache_random).upper() ))
+          #  value = res[0] #value (R object)
+          #  visible = ro.conversion.ri2py(res[1])[0] #visible (boolean)
+            ro.r("x_rpynotebookcache$to_disk()")
+        except (ri.RRuntimeError, ValueError) as exception:
+            warning_or_other_msg = self.flush() # otherwise next return seems to have copy of error
+            raise RInterpreterError(line, str_to_unicode(str(exception)), warning_or_other_msg)
+        text_output = self.flush()
+        ri.set_writeconsole(old_writeconsole)
+        return text_output, value
+                                 
+
+                                 
     def eval(self, line):
         '''
         Parse and evaluate a line of R code with rpy2.
@@ -605,7 +652,6 @@ class RMagics(Magics):
                     ro.r.show(result)
                     text_output += self.flush()
                     ri.set_writeconsole(old_writeconsole)
-        
         except RInterpreterError as e:
             print(e.stdout)
             if not e.stdout.endswith(e.err):
@@ -667,8 +713,196 @@ class RMagics(Magics):
             if result != ri.NULL:
                 return self.Rconverter(result, dataframe=False)
 
+
+    @skip_doctest
+    @magic_arguments()
+    @argument(
+        '-i', '--input', action='append',
+        help='Names of input variable from shell.user_ns to be assigned to R variables of the same names after calling self.pyconverter. Multiple names can be passed separated only by commas with no whitespace.'
+        )
+    @argument(
+        '-o', '--output', action='append',
+        help='Names of variables to be pushed from rpy2 to shell.user_ns after executing cell body and applying self.Rconverter. Multiple names can be passed separated only by commas with no whitespace.'
+        )
+    @argument(
+        '-w', '--width', type=int,
+        help='Width of png plotting device sent as an argument to *png* in R.'
+        )
+    @argument(
+        '-h', '--height', type=int,
+        help='Height of png plotting device sent as an argument to *png* in R.'
+        )
+
+    @argument(
+        '-d', '--dataframe', action='append',
+        help='Convert these objects to data.frames and return as structured arrays.'
+        )
+    @argument(
+        '-u', '--units', type=unicode, choices=["px", "in", "cm", "mm"],
+        help='Units of png plotting device sent as an argument to *png* in R. One of ["px", "in", "cm", "mm"].'
+        )
+    @argument(
+        '-r', '--res', type=int,
+        help='Resolution of png plotting device sent as an argument to *png* in R. Defaults to 72 if *units* is one of ["in", "cm", "mm"].'
+        )
+    @argument(
+        '-p', '--pointsize', type=int,
+        help='Pointsize of png plotting device sent as an argument to *png* in R.'
+        )
+    @argument(
+        '-b', '--bg',
+        help='Background of png plotting device sent as an argument to *png* in R.'
+        )
+    @argument(
+        '--cacherandom',
+        help='Cache results in cases where randomness is detected.',
+        action='store_true',
+        default=False
+        )
+    @argument(
+        '-n', '--noreturn',
+        help='Force the magic to not return anything.',
+        action='store_true',
+        default=False
+        )
+    @argument(
+        'code',
+        nargs='*',
+        )
+    @needs_local_scope
+    @line_cell_magic
+    def Rcaching(self, line, cell=None, local_ns=None):
+        '''
+        Execute code in R, and pull some of the results back into the Python namespace.
+
+        Identical to R (above) except that RCacheSuite is used to cache the results of the evaluation so that expensive computations are only rerun when they need to be
+
+        ~GB
+        '''
+
+        args = parse_argstring(self.Rcaching, line)
+
+        # arguments 'code' in line are prepended to
+        # the cell lines
+
+        if cell is None:
+            code = ''
+            return_output = True
+            line_mode = True
+        else:
+            code = cell
+            return_output = False
+            line_mode = False
+
+        code = ' '.join(args.code) + code
+
+        # if there is no local namespace then default to an empty dict
+        if local_ns is None:
+            local_ns = {}
+
+        if args.input:
+            for input in ','.join(args.input).split(','):
+                try:
+                    val = local_ns[input]
+                except KeyError:
+                    try:
+                        val = self.shell.user_ns[input]
+                    except KeyError:
+                        raise NameError("name '%s' is not defined" % input)
+                self.r.assign(input, self.pyconverter(val))
+
+        if getattr(args, 'units') is not None:
+            if args.units != "px" and getattr(args, 'res') is None:
+                args.res = 72
+            args.units = '"%s"' % args.units
+
+        png_argdict = dict([(n, getattr(args, n)) for n in ['units', 'res', 'height', 'width', 'bg', 'pointsize']])
+        png_args = ','.join(['%s=%s' % (o,v) for o, v in png_argdict.items() if v is not None])
+        # execute the R code in a temporary directory
+
+        tmpd = tempfile.mkdtemp()
+        self.r('png("%s/Rplots%%03d.png",%s)' % (tmpd.replace('\\', '/'), png_args))
+#http://r.789695.n4.nabble.com/Save-generic-plot-to-file-before-rendering-to-device-tp3659999p3660387.html
+        self.r("dev.control(displaylist='enable')")
+
+        text_output = ''
+        try:
+            if line_mode:
+                for line in code.split(';'):
+                    text_result, result = self.caching_eval(line, args.cacherandom)
+                    text_output += text_result
+                if text_result:
+                    # the last line printed something to the console so we won't return it
+                    return_output = False
+            else:
+                text_result, result = self.caching_eval(code, args.cacherandom)
+                text_output += text_result
+        except RInterpreterError as e:
+            print(e.stdout)
+            if not e.stdout.endswith(e.err):
+                print(e.err)
+            rmtree(tmpd)
+            return
+
+        self.r('dev.off()')
+
+        # read out all the saved .png files
+
+        images = [open(imgfile, 'rb').read() for imgfile in glob("%s/Rplots*png" % tmpd)]
+
+        # now publish the images
+        # mimicking IPython/zmq/pylab/backend_inline.py
+        fmt = 'png'
+        mimetypes = { 'png' : 'image/png', 'svg' : 'image/svg+xml' }
+        mime = mimetypes[fmt]
+
+        # publish the printed R objects, if any
+
+        display_data = []
+        if text_output:
+            display_data.append(('RMagic.R', {'text/plain':text_output}))
+
+        # flush text streams before sending figures, helps a little with output
+        for image in images:
+            # synchronization in the console (though it's a bandaid, not a real sln)
+            sys.stdout.flush(); sys.stderr.flush()
+            display_data.append(('RMagic.R', {mime: image}))
+
+        # kill the temporary directory
+        rmtree(tmpd)
+
+        # try to turn every output into a numpy array
+        # this means that output are assumed to be castable
+        # as numpy arrays
+
+        if args.output:
+            for output in ','.join(args.output).split(','):
+                self.shell.push({output:self.Rconverter(self.r(output), dataframe=False)})
+
+        if args.dataframe:
+            for output in ','.join(args.dataframe).split(','):
+                self.shell.push({output:self.Rconverter(self.r(output), dataframe=True)})
+
+        for tag, disp_d in display_data:
+            publish_display_data(tag, disp_d)
+
+        # this will keep a reference to the display_data
+        # which might be useful to other objects who happen to use
+        # this method
+
+        if self.cache_display_data:
+            self.display_cache = display_data
+
+        # if in line mode and return_output, return the result as an ndarray
+        if return_output and not args.noreturn:
+            if result != ri.NULL:
+                return self.Rconverter(result, dataframe=False)
+
+
+
 __doc__ = __doc__.format(
                 R_DOC = ' '*8 + RMagics.R.__doc__,
+                RCACHING_DOC = ' '*8 + RMagics.Rcaching.__doc__,
                 RPUSH_DOC = ' '*8 + RMagics.Rpush.__doc__,
                 RPULL_DOC = ' '*8 + RMagics.Rpull.__doc__,
                 RGET_DOC = ' '*8 + RMagics.Rget.__doc__

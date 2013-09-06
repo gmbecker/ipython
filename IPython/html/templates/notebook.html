@@ -123,17 +123,20 @@ class="notebook_app"
                 <li id="run_all_cells_below"><a href="#">Run All Below</a></li>
                 <li class="divider"></li>
                 <li id="change_cell_type" class="dropdown-submenu"><a href="#">Cell Type</a>
-                    <ul class="dropdown-menu">
-                      <li id="to_code"><a href="#">Code</a></li>
-                      <li id="to_markdown"><a href="#">Markdown </a></li>
-                      <li id="to_raw"><a href="#">Raw Text</a></li>
-                      <li id="to_heading1"><a href="#">Heading 1</a></li>
-                      <li id="to_heading2"><a href="#">Heading 2</a></li>
-                      <li id="to_heading3"><a href="#">Heading 3</a></li>
-                      <li id="to_heading4"><a href="#">Heading 4</a></li>
-                      <li id="to_heading5"><a href="#">Heading 5</a></li>
-                      <li id="to_heading6"><a href="#">Heading 6</a></li>
-                    </ul>
+                  <ul class="dropdown-menu">
+                    <li id="to_code"><a href="#">Code</a></li>
+		    <li id="to_intcode"><a href="#">Interactive Code</a></li>
+		    <li id="to_markdown"><a href="#">Markdown </a></li>
+                    <li id="to_raw"><a href="#">Raw Text</a></li>
+                    <li id="to_task"><a href="#">Task</a></li>
+		    <li id="to_altset"><a href="#">Alternatives Set</a></li>
+		    <li id="to_heading1"><a href="#">Heading 1</a></li>
+                    <li id="to_heading2"><a href="#">Heading 2</a></li>
+                    <li id="to_heading3"><a href="#">Heading 3</a></li>
+                    <li id="to_heading4"><a href="#">Heading 4</a></li>
+                    <li id="to_heading5"><a href="#">Heading 5</a></li>
+                    <li id="to_heading6"><a href="#">Heading 6</a></li>
+                  </ul>
                 </li>
                 <li class="divider"></li>
                 <li id="toggle_output"><a href="#">Toggle Current Output</a></li>
@@ -235,6 +238,8 @@ class="notebook_app"
 <script src="{{ static_url("notebook/js/cell.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("notebook/js/celltoolbar.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("notebook/js/codecell.js") }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{ static_url("notebook/js/interactivecodecell.js") }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{ static_url("notebook/js/taskcell.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("notebook/js/completer.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("notebook/js/textcell.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("services/kernels/js/kernel.js") }}" type="text/javascript" charset="utf-8"></script>
@@ -255,5 +260,7 @@ class="notebook_app"
 
 <script src="{{ static_url("notebook/js/celltoolbarpresets/default.js") }}" type="text/javascript" charset="utf-8"></script>
 <script src="{{ static_url("notebook/js/celltoolbarpresets/slideshow.js") }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{ static_url("notebook/js/celltoolbarpresets/altstoolbar.js") }}" type="text/javascript" charset="utf-8"></script>
+
 
 {% endblock %}

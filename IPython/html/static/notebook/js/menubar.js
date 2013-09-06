@@ -55,8 +55,10 @@ var IPython = (function (IPython) {
         this.element.find("li").click(function (event, ui) {
                 // The selected cell loses focus when the menu is entered, so we
                 // re-select it upon selection.
-                var i = IPython.notebook.get_selected_index();
-                IPython.notebook.select(i);
+                //var i = IPython.notebook.get_selected_index();
+                //IPython.notebook.select(i);
+	    var cell = IPython.notebook.get_selected_cell();
+	    cell.select();
             }
         );
     };
@@ -146,10 +148,14 @@ var IPython = (function (IPython) {
         });
         // Insert
         this.element.find('#insert_cell_above').click(function () {
-            IPython.notebook.insert_cell_above('code');
+          //  IPython.notebook.insert_cell_above('code');
+	    var cell = IPython.notebook.get_selected_cell();
+	    cell.parent.insert_cell_above("code", cell.parent.find_cell_index(cell));
         });
         this.element.find('#insert_cell_below').click(function () {
-            IPython.notebook.insert_cell_below('code');
+	    var cell = IPython.notebook.get_selected_cell();
+	    cell.parent.insert_cell_below("code", cell.parent.find_cell_index(cell));
+//            IPython.notebook.insert_cell_below('code');
         });
         // Cell
         this.element.find('#run_cell').click(function () {
@@ -169,6 +175,15 @@ var IPython = (function (IPython) {
         }).attr('title', 'Run this cell and all cells below it');
         this.element.find('#to_code').click(function () {
             IPython.notebook.to_code();
+        });
+	this.element.find('#to_intcode').click(function () {
+            IPython.notebook.to_intcode();
+        });
+	this.element.find('#to_task').click(function () {
+            IPython.notebook.to_task();
+        })
+	this.element.find('#to_altset').click(function () {
+            IPython.notebook.to_altset();
         });
         this.element.find('#to_markdown').click(function () {
             IPython.notebook.to_markdown();

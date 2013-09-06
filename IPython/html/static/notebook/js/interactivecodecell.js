@@ -24,6 +24,7 @@ var IPython = (function (IPython){
         this.default_mode = 'python';
 	this.widgets = [];
 	this.widget_area = null;
+	this.cell_type = "interactivecode";
         var cm_overwrite_options  = {
             extraKeys: {"Tab": "indentMore","Shift-Tab" : "indentLess",'Backspace':"delSpaceToPrevTabStop"},
             onKeyEvent: $.proxy(this.handle_codemirror_keyevent,this)
@@ -83,6 +84,22 @@ var IPython = (function (IPython){
         }
     };
 
+    IntCodeCell.prototype.toJSON = function () {
+        var data = IPython.Cell.prototype.toJSON.apply(this);
+        data.input = this.get_text();
+        data.cell_type = 'interactivecode';
+        if (this.input_prompt_number) {
+            data.prompt_number = this.input_prompt_number;
+        };
+        var outputs = this.output_area.toJSON();
+        data.outputs = outputs;
+        data.language = 'python';
+        data.collapsed = this.collapsed;
+	data.widgets = this.widgets
+        return data;
+    };
+
+
     IntCodeCell.prototype.fromJSON = function(data){
 	IPython.CodeCell.prototype.fromJSON.apply(this, arguments);
 	if(data.cell_type === "interactivecode") {
@@ -108,40 +125,66 @@ var IPython = (function (IPython){
             };
 
 	    if(data.widgets !== undefined){
-		this.widgets = data.widgets;
+		//These get added during add_widget
+		//this.widgets = data.widgets;
 		var nwidg = data.widgets.length;
 		var widget, wdata, widget_container, widget_label;
 		for(var i = 0; i < nwidg; i++)
 		{
 		    wdata = data.widgets[i];
-		    if(wdata.type === "slider")
-		    {
-			widget_container = $("<div></div>").addClass("widget_container hbox");
-			widget_label = $("<span></span>").text(wdata.variable + ": ").addClass("widget_label");
-			widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max, value:wdata.defaultvalue}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
-			widget_container.append(widget_label);
-			widget_container.append(widget);
-			this.widget_area.append(widget_container);
-		    }
-		    
+		    this.add_widget(wdata);
 		}
 	    }
 	    
 	}
     };
     
+    IntCodeCell.prototype.add_widget = function(wdata, i)
+    {
+	var i = i | this.widgets.length;
+	var widget_container, widget, widget_label;
+	if(wdata.type === "slider")
+	{
+	    widget_container = $("<div></div>").addClass("widget_container hbox");
+	    widget_label = $("<span></span>").text(wdata.variable + ": ").addClass("widget_label");
+	    //widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max, value:wdata.defaultvalue}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
+	    widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
+	    widget_container.append(widget_label);
+	    widget_container.append(widget);
+	    this.widget_area.append(widget_container);
+	}
+	this.widgets.push(wdata);
+	
+    };
+    
+/*
+//output not getting cleared properly after execution of interactive code cells...
+    IntCodeCell.prototype.execute = function () {
+        this.output_area.clear_output(true, true, true);
+        this.set_input_prompt('*');
+        this.element.addClass("running");
+        var callbacks = {
+            'execute_reply': $.proxy(this._handle_execute_reply, this),
+            'output': $.proxy(this.output_area.handle_output, this.output_area),
+            'clear_output': $.proxy(this.output_area.handle_clear_output, this.output_area),
+            'set_next_input': $.proxy(this._handle_set_next_input, this),
+            'input_request': $.proxy(this._handle_input_request, this)
+        };
+        var msg_id = this.kernel.execute(this.get_text(), callbacks, {silent: false});
+    };    
+
+*/
+    
     IntCodeCell.prototype.doControl = function(event)
     {
 	var dat = event.data;
 	var that = dat.cell;	
-//var widget = this.widget_area.children("div.widget_container")[dat.index].children("input");
-	//var widget = $(this.widget_area).children("div.widget_container").children("input");
-	//XXX widget is undefined
 	var widget = $(that.widget_area).children("div.widget_container").children("input");
-	var val = widget.attr("value");
+	var val = widget.val();
 	var txt = dat.variable + " = " + val + ";";
 	
 	that.code_mirror.setLine(dat.linenum, txt);
+	//that.output_area.clear_output(true, true, true);
 	that.execute();
 
     };
