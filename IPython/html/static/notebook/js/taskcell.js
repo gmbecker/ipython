@@ -645,7 +645,11 @@ var IPython = (function (IPython) {
 	cell.css({"background-color":"#CCFFFF", "padding-left":"10px", "display":"inline-block", "overflow":"hidden"});
 	
         var input_area = $('<div/>').addClass('alts_cell_input border-box-sizing');
-	
+	that = this;
+	var minmax = $("<button>-</button>").addClass("alts_showhide");
+	minmax.click({altset:that}, function(evt) { evt.data.altset.toggle_alts_display()});
+	minmax.css({"float":"right", "top":"5px", "right":"5px"});
+	cell.append(minmax);
         this.code_mirror = CodeMirror(input_area.get(0), {
             indentUnit : 4,
             mode: this.code_mirror_mode,
