@@ -215,11 +215,12 @@ class RMagics(Magics):
             if havecache != True:
                 #  ri.baseenv['library']("RCacheSuite")
                 ro.r("suppressPackageStartupMessages(library(RCacheSuite))")
-                ro.r("x_rpynotebookcache <- cacheClass$new( base_dir= './r_caches/')")
+               # ro.r("x_rpynotebookcache <- cacheClass$new( base_dir= './r_caches/')")
+                ro.r("x_rpynotebookcache <- cachingEngine(eval_fun=parseWithVis, return_handler = withVisHandler, write_on_cache = TRUE)")
             value = ro.r("evalWithCache('%s', cache = x_rpynotebookcache, cacheRand=%s)" %(line, str(cache_random).upper() ))
           #  value = res[0] #value (R object)
           #  visible = ro.conversion.ri2py(res[1])[0] #visible (boolean)
-            ro.r("x_rpynotebookcache$to_disk()")
+#            ro.r("x_rpynotebookcache$to_disk()")
         except (ri.RRuntimeError, ValueError) as exception:
             warning_or_other_msg = self.flush() # otherwise next return seems to have copy of error
             raise RInterpreterError(line, str_to_unicode(str(exception)), warning_or_other_msg)
