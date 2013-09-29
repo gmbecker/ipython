@@ -533,6 +533,12 @@ var IPython = (function (IPython) {
         });
     };
 
+    Notebook.prototype.get_children_and_hidden = function() {
+	return this.container.children("div.cell, div.cell_hidden").toArray().map(function (e) {
+            return $(e).data("cell");
+	});
+    };
+    
     /**
      * Get a Cell object from this notebook.
      * 
@@ -1030,6 +1036,15 @@ var IPython = (function (IPython) {
 
 
 
+//http://stackoverflow.com/questions/135448/how-do-i-check-to-see-if-an-object-has-a-property-in-javascript
+    function hasOwnProperty(obj, prop) {
+	var proto = obj.__proto__ || obj.constructor.prototype;
+	return (prop in obj) &&
+            (!(prop in proto) || proto[prop] !== obj[prop]);
+    }
+
+
+
     Notebook.prototype.change_detail_level = function(level){
 	if (typeof level === 'undefined')
 	    level = 1;
@@ -1045,8 +1060,8 @@ var IPython = (function (IPython) {
 	var cell;
 	for(var j=0; j<cells.length; j++)
 	{
-	    cell = cells[i];
-	    if(typeof cell.metadata.dyndocmodel.detail != 'undefined' && cell.metadata.dyndocmodel.detail > level)
+	    cell = cells[j];
+	    if(cell.metadata.hasOwnProperty("dyndocmodel") && cell.metadata.dyndocmodel.hasOwnProperty("detail") && cell.metadata.dyndocmodel.detail > level)
 		$(cell.element).removeClass("cell").addClass("cell_hidden");
 	};
 
@@ -1978,7 +1993,7 @@ var IPython = (function (IPython) {
      */
     Notebook.prototype.toJSON = function () {
        // var cells = this.get_cells();
-	var cells = this.get_direct_children();
+	var cells = this.get_children_and_hidden();
 	var ncells = cells.length;
         var cell_array = new Array(ncells);
         for (var i=0; i<ncells; i++) {
