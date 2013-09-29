@@ -173,7 +173,8 @@ var IPython = (function (IPython) {
 	
 	this.element.append($('<span/>').addClass("navbar-text").text('Detail level:'));
         this.element.append($('<input type="range" min="1" max = "5" value="1"/>').attr("id", "detailslider"));
-
+	this.element.append($('<span/>').addClass("navbar-text").text('hidden:'));
+	this.element.append($('<span/>').attr("id", "levels_hidden").addClass("navbar-text").text(''));
     };
 
 

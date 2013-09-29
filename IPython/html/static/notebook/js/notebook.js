@@ -1051,20 +1051,34 @@ var IPython = (function (IPython) {
 	var hidden = this.element.find("div.cell_hidden");
 	var cells = this.get_all_cell_elements();
 	var hcell;
+	var hlevels = new Array();
+	var found;
+	var detail;
 	for(var i=0; i < hidden.length; i++)
 	{
 	    hcell = $(hidden[i]).data("cell");
-	    if(hcell.metadata.dyndocmodel.detail <= level)
+	    detail = hcell.metadata.dyndocmodel.detail;
+	    if(detail <= level)
 		$(hidden[i]).removeClass("cell_hidden").addClass("cell");
+	    else {
+		if(hlevels.indexOf(detail) == -1)
+		    hlevels.push(detail);
+	    }
 	}
 	var cell;
+	detail = undefined;
 	for(var j=0; j<cells.length; j++)
 	{
 	    cell = $(cells[j]).data("cell");
-	    if(cell.metadata.hasOwnProperty("dyndocmodel") && cell.metadata.dyndocmodel.hasOwnProperty("detail") && cell.metadata.dyndocmodel.detail > level)
+	    if(cell.metadata.hasOwnProperty("dyndocmodel") && cell.metadata.dyndocmodel.hasOwnProperty("detail") && cell.metadata.dyndocmodel.detail > level) {
+		detail = cell.metadata.dyndocmodel.detail;
 		$(cell.element).removeClass("cell").addClass("cell_hidden");
+		if(hlevels.indexOf(detail) == -1)
+		    hlevels.push(detail);
+	    };
 	};
-
+	$("#levels_hidden").text(hlevels);
+	
     };
 
 
