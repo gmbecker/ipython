@@ -1983,6 +1983,7 @@ var IPython = (function (IPython) {
                 }
             });
         }
+	this.change_detail_level(1);
     };
 
     /**
