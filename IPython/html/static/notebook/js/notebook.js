@@ -1030,6 +1030,32 @@ var IPython = (function (IPython) {
 
 
 
+    Notebook.prototype.change_detail_level = function(level){
+	if (typeof level === 'undefined')
+	    level = 1;
+	var hidden = this.element.find("div.cell_hidden");
+	var cells = this.get_cells();
+	var hcell;
+	for(var i=0; i < hidden.length; i++)
+	{
+	    hcell = $(hidden[i]).data("cell");
+	    if(hcell.metadata.dyndocmodel.detail <= level)
+		$(hidden[i]).removeClass("cell_hidden").addClass("cell");
+	}
+	var cell;
+	for(var j=0; j<cells.length; j++)
+	{
+	    cell = cells[i];
+	    if(typeof cell.metadata.dyndocmodel.detail != 'undefined' && cell.metadata.dyndocmodel.detail > level)
+		$(cell.element).removeClass("cell").addClass("cell_hidden");
+	};
+
+    };
+
+
+
+
+
     /**
      * Turn a cell into a code cell.
      * 
@@ -1037,12 +1063,6 @@ var IPython = (function (IPython) {
      * @param {Number} [index] A cell's index
      */
     Notebook.prototype.to_code = function (index) {
-//	var i = this.index_or_selected(index);
- //       if (this.is_valid_cell_index(i)) {
-            //var source_element = this.get_cell_element(i);
-//	if(!this.is_valid_cell_index(index))
-//	    index = undefined;
-	
 	var source_cell = this.index_or_selected_cell(index);
 	if (!(source_cell instanceof IPython.CodeCell)) {
 	    var source_element = source_cell.element;

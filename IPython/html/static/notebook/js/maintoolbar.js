@@ -16,6 +16,7 @@ var IPython = (function (IPython) {
         this.construct();
         this.add_celltype_list();
         this.add_celltoolbar_list();
+	this.add_detail_slider();
         this.bind_events();
     };
 
@@ -168,6 +169,13 @@ var IPython = (function (IPython) {
         });
     };
 
+    MainToolBar.prototype.add_detail_slider = function() {
+	
+	this.element.append($('<span/>').addClass("navbar-text").text('Detail level:'));
+        this.element.append($('<input type="range" min="1" max = "5" value="1"/>').attr("id", "detailslider"));
+
+    };
+
 
     MainToolBar.prototype.bind_events = function () {
         var that = this;
@@ -207,6 +215,10 @@ var IPython = (function (IPython) {
                 that.element.find('#cell_type').val(data.cell_type);
             }
         });
+	that.element.find("#detailslider").change(function() {
+	    var val = $("#detailslider").val();
+	    IPython.notebook.change_detail_level(val);
+	});
     };
 
     IPython.MainToolBar = MainToolBar;
