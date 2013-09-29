@@ -485,6 +485,12 @@ var IPython = (function (IPython) {
 
     };
 
+    Notebook.prototype.get_displayed_cell_elements = function()
+    {
+	var ret = this.get_cell_elements();
+	return $(ret).not(".hidden");
+    };
+
     Notebook.prototype.get_direct_children = function() {
 	var kids = this.container.children("div.cell");
 	return kids.toArray().map(function (e) {
@@ -754,10 +760,26 @@ var IPython = (function (IPython) {
 	  * If it is not the last element within its parent, select the next one
 	  * otherwise select the parent.
 	  */
-	if(index < parent.ncells() - 1 )
-            parent.select(index+1);
+	if(!parent instanceof IPython.Notebook)
+	    parent.select_next()
 	else
-	    parent.select();
+	{
+	    var done = false;
+	    var tmpcell;
+	    var cindex = index;
+	    while(!done && cindex < this.ncells(true) -1)
+	    {
+		tmpcell = this.get_cell(cindex + 1)
+		if(!$(tmpcell.element).hasClass("hidden"))
+		{
+		    this.select(cindex+1);
+		    done = true;
+		}
+		cindex++
+	    };
+	    if(!done)
+		this.select(index +1);
+	}
         return this;
     };
 
@@ -1016,8 +1038,14 @@ var IPython = (function (IPython) {
 	else
 	    parent = cell.parent;
 	var index = parent.find_cell_index(cell);
-	return parent.insert_cell_at_index(type, index+1);
-//        return this.insert_cell_at_index(type, index+1);
+	var sibs = parent.get_cell_elements();
+	for(var i=index+1; i < sibs.length; i++)
+	{
+	    if(!$(sibs[i]).hasClass("hidden"))
+		return parent.insert_cell_at(type, i);
+	}
+	//return parent.insert_cell_at_index(type, index+1);
+	return parent.insert_cell_at(type, sibs.length);
     };
 
 
@@ -1048,7 +1076,7 @@ var IPython = (function (IPython) {
     Notebook.prototype.change_detail_level = function(level){
 	if (typeof level === 'undefined')
 	    level = 1;
-	var hidden = this.element.find("div.cell_hidden");
+	var hidden = this.element.find("div.hidden");
 	var cells = this.get_all_cell_elements();
 	var hcell;
 	var hlevels = new Array();
@@ -1059,7 +1087,7 @@ var IPython = (function (IPython) {
 	    hcell = $(hidden[i]).data("cell");
 	    detail = hcell.metadata.dyndocmodel.detail;
 	    if(detail <= level)
-		$(hidden[i]).removeClass("cell_hidden").addClass("cell");
+		$(hidden[i]).removeClass("hidden");
 	    else {
 		if(hlevels.indexOf(detail) == -1)
 		    hlevels.push(detail);
@@ -1072,7 +1100,7 @@ var IPython = (function (IPython) {
 	    cell = $(cells[j]).data("cell");
 	    if(cell.metadata.hasOwnProperty("dyndocmodel") && cell.metadata.dyndocmodel.hasOwnProperty("detail") && cell.metadata.dyndocmodel.detail > level) {
 		detail = cell.metadata.dyndocmodel.detail;
-		$(cell.element).removeClass("cell").addClass("cell_hidden");
+		$(cell.element).addClass("hidden");
 		if(hlevels.indexOf(detail) == -1)
 		    hlevels.push(detail);
 	    };
@@ -1829,6 +1857,9 @@ var IPython = (function (IPython) {
 		that = cell.parent;
 		cell_index = that.find_cell_index(cell);
 	    }
+	    //walk the cells in parent starting after executed cell until we find a non-hidden element or hit the end
+	    while(cell_index < that.ncells()-1 && $(that.get_cell(cell_index + 1).element).hasClass("hidden"))
+		cell_index++;
 	    if ((cell_index === (that.ncells()-1)) && default_options.add_new) {
                 that.insert_cell_below('code', cell_index);
                 // If we are adding a new cell at the end, scroll down to show it.
@@ -1997,7 +2028,6 @@ var IPython = (function (IPython) {
                 }
             });
         }
-	this.change_detail_level(1);
     };
 
     /**
@@ -2217,6 +2247,8 @@ var IPython = (function (IPython) {
         IPython.notebook.list_checkpoints();
 
         $([IPython.events]).trigger('notebook_loaded.Notebook');
+	this.change_detail_level(1);
+
     };
 
     /**

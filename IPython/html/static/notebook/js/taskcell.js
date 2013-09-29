@@ -25,8 +25,13 @@ var IPython = (function (IPython) {
  
     
     //Cell indexing and lookup. lifted from notebook.js Notebook.prototype functions
-    ContainerCell.prototype.get_cell_elements = function () {
-        return this.element.children("div.cell");
+    ContainerCell.prototype.get_cell_elements = function (all) {
+	if(typeof all === 'undefined')
+	    all = true;
+	var ret = this.element.children("div.cell");
+	if(!all)
+	    ret = $(ret).not(".hidden");
+        return ret;
     };
     
     
@@ -85,7 +90,7 @@ var IPython = (function (IPython) {
      **/
     ContainerCell.prototype.insert_cell_at_index = function(type, index){
 
-        var ncells = this.ncells();
+        var ncells = this.ncells(true);
         var index = Math.min(index,ncells);
             index = Math.max(index,0);
         var cell = null;
@@ -230,7 +235,7 @@ var IPython = (function (IPython) {
     };
     
     ContainerCell.prototype.is_valid_cell_index = function (index) {
-	var max = this.ncells();
+	var max = this.ncells(true);
         if (index !== null && index >= 0 && index < this.ncells()) {
             return true;
         } else {
@@ -331,16 +336,29 @@ var IPython = (function (IPython) {
 	var notebook = IPython.notebook;
 	var cell = notebook.get_selected_cell();
 	var cindex = this.find_cell_index(cell);
-	if(cindex < this.ncells() - 1)
-	    this.select(cindex + 1);
-	else
+	var done = false;
+	var tmpcell;
+	while(!done && cindex < this.ncells(true) -1)
+	{
+	    tmpcell = this.get_cell(cindex + 1)
+	    if(!$(tmpcell.element).hasClass("hidden"))
+	    {
+		this.select(cindex+1);
+		done = true;
+	    }
+	    cindex++
+	};
+	if(!done)
+//	    if(cindex < this.ncells() - 1)
+//		this.select(cindex + 1);
+//	else
 	{
 	    var parent = this.parent;
 	    cindex = parent.find_cell_index(this);
 	    
-	    if(cindex < parent.ncells() - 1)
-		parent.select(cindex + 1);
-	    else
+//	    if(cindex < parent.ncells() - 1)
+//		parent.select(cindex + 1);
+//	    else
 	    {
 		this.select();
 		this.parent.select_next();
@@ -593,7 +611,7 @@ var IPython = (function (IPython) {
 	for(var i=0; i<ncells; i++)
 	{
 	    cell = this.get_cell(i);
-	    if( cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell || cell instanceof IPython.IntCodeCell)
+	    if( !$(cell.element).hasClass("hidden") && (cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell || cell instanceof IPython.IntCodeCell))
 		cell.execute();
 	}
     };
@@ -894,7 +912,7 @@ var IPython = (function (IPython) {
 	for(var i=0; i<ncells; i++)
 	{
 	    cell = this.get_cell(i);
-	    if( cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell || cell instanceof IPython.IntCodeCell)
+	    if( !$(cell.element).hasClass("cell_hidden") && (cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell || cell instanceof IPython.IntCodeCell))
 		cell.execute( function(text){ return null;} );
 	}
 
