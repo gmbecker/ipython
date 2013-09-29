@@ -1049,7 +1049,7 @@ var IPython = (function (IPython) {
 	if (typeof level === 'undefined')
 	    level = 1;
 	var hidden = this.element.find("div.cell_hidden");
-	var cells = this.get_cells();
+	var cells = this.get_all_cell_elements();
 	var hcell;
 	for(var i=0; i < hidden.length; i++)
 	{
@@ -1060,7 +1060,7 @@ var IPython = (function (IPython) {
 	var cell;
 	for(var j=0; j<cells.length; j++)
 	{
-	    cell = cells[j];
+	    cell = $(cells[j]).data("cell");
 	    if(cell.metadata.hasOwnProperty("dyndocmodel") && cell.metadata.dyndocmodel.hasOwnProperty("detail") && cell.metadata.dyndocmodel.detail > level)
 		$(cell.element).removeClass("cell").addClass("cell_hidden");
 	};
