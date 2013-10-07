@@ -8,13 +8,13 @@
 {%- endblock codecell %}
 
 {% block input_group -%}
-<div class="input hbox">
+<div class="input">
 {{ super() }}
 </div>
 {% endblock input_group %}
 
 {% block output_group %}
-<div class="vbox output_wrapper">
+<div class="output_wrapper">
 <div class="output vbox">
 {{ super() }}
 </div>
@@ -36,12 +36,12 @@ In&nbsp;[{{ cell.prompt_number }}]:
 
 {% block input %}
 <div class="input_area box-flex1">
-{{ cell.input | highlight2html }}
+{{ cell.input | highlight2html(metadata=cell.metadata) }}
 </div>
 {%- endblock input %}
 
 {% block output %}
-<div class="hbox output_area">
+<div class="output_area">
 {%- if output.output_type == 'pyout' -%}
     <div class="prompt output_prompt">
     Out[{{ cell.prompt_number }}]:
@@ -55,13 +55,13 @@ In&nbsp;[{{ cell.prompt_number }}]:
 
 {% block markdowncell scoped %}
 <div class="text_cell_render border-box-sizing rendered_html">
-{{ cell.source | strip_math_space | markdown2html | strip_files_prefix }}
+{{ cell.source  | markdown2html | strip_files_prefix }}
 </div>
 {%- endblock markdowncell %}
 
 {% block headingcell scoped %}
 <div class="text_cell_render border-box-sizing rendered_html">
-{{ ("#" * cell.level + cell.source) | replace('\n', ' ') | strip_math_space | markdown2html | strip_files_prefix | add_anchor }}
+{{ ("#" * cell.level + cell.source) | replace('\n', ' ')  | markdown2html | strip_files_prefix | add_anchor }}
 </div>
 {% endblock headingcell %}
 
@@ -133,6 +133,12 @@ unknown type  {{ cell.type }}
 <pre>
 {{ output.text | ansi2html }}
 </pre>
+{%- endblock -%}
+
+{%- block data_javascript %}
+<script type="text/javascript">
+{{ output.javascript }}
+</script>
 {%- endblock -%}
 
 {%- block display_data scoped -%}

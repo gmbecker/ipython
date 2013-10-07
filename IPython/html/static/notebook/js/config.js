@@ -15,6 +15,7 @@
  **/
 
 var IPython = (function (IPython) {
+    "use strict";
         /**
          * A place where some stuff can be confugured.
          *
@@ -49,12 +50,13 @@ var IPython = (function (IPython) {
          *     cell_magic_highlight['javascript'] = {'reg':[/^var/]}
          */
         cell_magic_highlight : {
-              'magic_javascript':{'reg':[/^%%javascript/]}
-             ,'magic_perl'      :{'reg':[/^%%perl/]}
-             ,'magic_ruby'      :{'reg':[/^%%ruby/]}
-             ,'magic_python'    :{'reg':[/^%%python3?/]}
-             ,'magic_shell'      :{'reg':[/^%%bash/]}
-             ,'magic_r'         :{'reg':[/^%%R/]}
+              'magic_javascript'    :{'reg':[/^%%javascript/]}
+             ,'magic_perl'          :{'reg':[/^%%perl/]}
+             ,'magic_ruby'          :{'reg':[/^%%ruby/]}
+             ,'magic_python'        :{'reg':[/^%%python3?/]}
+             ,'magic_shell'         :{'reg':[/^%%bash/]}
+             ,'magic_r'             :{'reg':[/^%%R/]}
+             ,'magic_text/x-cython' :{'reg':[/^%%cython/]}
             },
 
         /**

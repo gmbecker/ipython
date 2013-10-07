@@ -12,13 +12,14 @@
 # Imports
 #-----------------------------------------------------------------------------
 
+import errno
 import os
 import socket
 from threading import Thread
 
 import zmq
 
-from IPython.utils.localinterfaces import LOCALHOST
+from IPython.utils.localinterfaces import localhost
 
 #-----------------------------------------------------------------------------
 # Code
@@ -28,7 +29,9 @@ from IPython.utils.localinterfaces import LOCALHOST
 class Heartbeat(Thread):
     "A simple ping-pong style heartbeat that runs in a thread."
 
-    def __init__(self, context, addr=('tcp', LOCALHOST, 0)):
+    def __init__(self, context, addr=None):
+        if addr is None:
+            addr = ('tcp', localhost(), 0)
         Thread.__init__(self)
         self.context = context
         self.transport, self.ip, self.port = addr
@@ -52,5 +55,13 @@ class Heartbeat(Thread):
         self.socket = self.context.socket(zmq.REP)
         c = ':' if self.transport == 'tcp' else '-'
         self.socket.bind('%s://%s' % (self.transport, self.ip) + c + str(self.port))
-        zmq.device(zmq.FORWARDER, self.socket, self.socket)
-
+        while True:
+            try:
+                zmq.device(zmq.FORWARDER, self.socket, self.socket)
+            except zmq.ZMQError as e:
+                if e.errno == errno.EINTR:
+                    continue
+                else:
+                    raise
+            else:
+                break

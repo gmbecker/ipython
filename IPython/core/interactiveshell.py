@@ -22,12 +22,14 @@ import __future__
 import abc
 import ast
 import atexit
+import functools
 import os
 import re
 import runpy
 import sys
 import tempfile
 import types
+import subprocess
 from io import open as io_open
 
 from IPython.config.configurable import SingletonConfigurable
@@ -46,7 +48,6 @@ from IPython.core.displayhook import DisplayHook
 from IPython.core.displaypub import DisplayPublisher
 from IPython.core.error import UsageError
 from IPython.core.extensions import ExtensionManager
-from IPython.core.fakemodule import FakeModule, init_fakemod_dict
 from IPython.core.formatters import DisplayFormatter
 from IPython.core.history import HistoryManager
 from IPython.core.inputsplitter import IPythonInputSplitter, ESC_MAGIC, ESC_MAGIC2
@@ -184,6 +185,13 @@ class ReadlineNoRecord(object):
         start = max(end-n, 1)
         ghi = self.shell.readline.get_history_item
         return [ghi(x) for x in range(start, end)]
+
+
+@undoc
+class DummyMod(object):
+    """A dummy module used for IPython's interactive module when
+    a namespace must be assigned to the module's __dict__."""
+    pass
 
 #-----------------------------------------------------------------------------
 # Main IPython class
@@ -463,7 +471,6 @@ class InteractiveShell(SingletonConfigurable):
         # because it and init_io have to come after init_readline.
         self.init_user_ns()
         self.init_logger()
-        self.init_alias()
         self.init_builtins()
 
         # The following was in post_config_initialization
@@ -495,6 +502,7 @@ class InteractiveShell(SingletonConfigurable):
         self.init_displayhook()
         self.init_latextool()
         self.init_magics()
+        self.init_alias()
         self.init_logstart()
         self.init_pdb()
         self.init_extension_manager()
@@ -818,15 +826,18 @@ class InteractiveShell(SingletonConfigurable):
     # Things related to the "main" module
     #-------------------------------------------------------------------------
 
-    def new_main_mod(self, filename):
+    def new_main_mod(self, filename, modname):
         """Return a new 'main' module object for user code execution.
         
         ``filename`` should be the path of the script which will be run in the
         module. Requests with the same filename will get the same module, with
         its namespace cleared.
         
+        ``modname`` should be the module name - normally either '__main__' or
+        the basename of the file without the extension.
+        
         When scripts are executed via %run, we must keep a reference to their
-        __main__ module (a FakeModule instance) around so that Python doesn't
+        __main__ module around so that Python doesn't
         clear it, rendering references to module globals useless.
 
         This method keeps said reference in a private dict, keyed by the
@@ -839,9 +850,16 @@ class InteractiveShell(SingletonConfigurable):
         try:
             main_mod = self._main_mod_cache[filename]
         except KeyError:
-            main_mod = self._main_mod_cache[filename] = FakeModule()
+            main_mod = self._main_mod_cache[filename] = types.ModuleType(modname,
+                        doc="Module created for script run in IPython")
         else:
-            init_fakemod_dict(main_mod)
+            main_mod.__dict__.clear()
+            main_mod.__name__ = modname
+        
+        main_mod.__file__ = filename
+        # It seems pydoc (and perhaps others) needs any module instance to
+        # implement a __nonzero__ method
+        main_mod.__nonzero__ = lambda : True
         
         return main_mod
 
@@ -855,7 +873,7 @@ class InteractiveShell(SingletonConfigurable):
 
         In [15]: import IPython
 
-        In [16]: m = _ip.new_main_mod(IPython.__file__)
+        In [16]: m = _ip.new_main_mod(IPython.__file__, 'IPython')
 
         In [17]: len(_ip._main_mod_cache) > 0
         Out[17]: True
@@ -899,9 +917,9 @@ class InteractiveShell(SingletonConfigurable):
         Keywords:
 
           - force(False): by default, this routine checks the instance call_pdb
-          flag and does not actually invoke the debugger if the flag is false.
-          The 'force' option forces the debugger to activate even if the flag
-          is false.
+            flag and does not actually invoke the debugger if the flag is false.
+            The 'force' option forces the debugger to activate even if the flag
+            is false.
         """
 
         if not (force or self.call_pdb):
@@ -969,7 +987,7 @@ class InteractiveShell(SingletonConfigurable):
 
         # A record of hidden variables we have added to the user namespace, so
         # we can list later only variables defined in actual interactive use.
-        self.user_ns_hidden = set()
+        self.user_ns_hidden = {}
 
         # Now that FakeModule produces a real module, we've run into a nasty
         # problem: after script execution (via %run), the module where the user
@@ -1034,9 +1052,6 @@ class InteractiveShell(SingletonConfigurable):
         """
         if user_module is None and user_ns is not None:
             user_ns.setdefault("__name__", "__main__")
-            class DummyMod(object):
-                "A dummy module used for IPython's interactive namespace."
-                pass
             user_module = DummyMod()
             user_module.__dict__ = user_ns
             
@@ -1149,7 +1164,7 @@ class InteractiveShell(SingletonConfigurable):
         
         Note that this does not include the displayhook, which also caches
         objects from the output."""
-        return [self.user_ns, self.user_global_ns] + \
+        return [self.user_ns, self.user_global_ns, self.user_ns_hidden] + \
                [m.__dict__ for m in self._main_mod_cache.values()]
 
     def reset(self, new_session=True):
@@ -1300,7 +1315,8 @@ class InteractiveShell(SingletonConfigurable):
         # And configure interactive visibility
         user_ns_hidden = self.user_ns_hidden
         if interactive:
-            user_ns_hidden.difference_update(vdict)
+            for name in vdict:
+                user_ns_hidden.pop(name, None)
         else:
             user_ns_hidden.update(vdict)
     
@@ -1320,7 +1336,7 @@ class InteractiveShell(SingletonConfigurable):
         for name, obj in variables.iteritems():
             if name in self.user_ns and self.user_ns[name] is obj:
                 del self.user_ns[name]
-                self.user_ns_hidden.discard(name)
+                self.user_ns_hidden.pop(name, None)
 
     #-------------------------------------------------------------------------
     # Things related to object introspection
@@ -1348,9 +1364,7 @@ class InteractiveShell(SingletonConfigurable):
             namespaces = [ ('Interactive', self.user_ns),
                            ('Interactive (global)', self.user_global_ns),
                            ('Python builtin', builtin_mod.__dict__),
-                           ('Alias', self.alias_manager.alias_table),
                            ]
-            alias_ns = self.alias_manager.alias_table
 
         # initialize results to 'null'
         found = False; obj = None;  ospace = None;  ds = None;
@@ -1389,8 +1403,6 @@ class InteractiveShell(SingletonConfigurable):
                     # If we finish the for loop (no break), we got all members
                     found = True
                     ospace = nsname
-                    if ns == alias_ns:
-                        isalias = True
                     break  # namespace loop
 
         # Try to see if it's magic
@@ -1925,7 +1937,6 @@ class InteractiveShell(SingletonConfigurable):
         self.Completer = IPCompleter(shell=self,
                                      namespace=self.user_ns,
                                      global_namespace=self.user_global_ns,
-                                     alias_table=self.alias_manager.alias_table,
                                      use_readline=self.has_readline,
                                      parent=self,
                                      )
@@ -2028,7 +2039,6 @@ class InteractiveShell(SingletonConfigurable):
 
         # Expose as public API from the magics manager
         self.register_magics = self.magics_manager.register
-        self.register_magic_function = self.magics_manager.register_function
         self.define_magic = self.magics_manager.define_magic
 
         self.register_magics(m.AutoMagics, m.BasicMagics, m.CodeMagics,
@@ -2052,6 +2062,12 @@ class InteractiveShell(SingletonConfigurable):
         # should be split into a prompt manager and displayhook. We probably
         # even need a centralize colors management object.
         self.magic('colors %s' % self.colors)
+    
+    # Defined here so that it's included in the documentation
+    @functools.wraps(magic.MagicsManager.register_function)
+    def register_magic_function(self, func, magic_kind='line', magic_name=None):
+        self.magics_manager.register_function(func, 
+                                  magic_kind=magic_kind, magic_name=magic_name)
 
     def run_line_magic(self, magic_name, line):
         """Execute the given line magic.
@@ -2217,7 +2233,8 @@ class InteractiveShell(SingletonConfigurable):
         self.user_ns['_exit_code'] = system(self.var_expand(cmd, depth=1))
 
     def system_raw(self, cmd):
-        """Call the given cmd in a subprocess using os.system
+        """Call the given cmd in a subprocess using os.system on Windows or
+        subprocess.call using the system shell on other platforms.
 
         Parameters
         ----------
@@ -2235,11 +2252,10 @@ class InteractiveShell(SingletonConfigurable):
                 ec = os.system(cmd)
         else:
             cmd = py3compat.unicode_to_str(cmd)
-            ec = os.system(cmd)
-            # The high byte is the exit code, the low byte is a signal number
-            # that we discard for now. See the docs for os.wait()
-            if ec > 255:
-                ec >>= 8
+            # Call the cmd using the OS shell, instead of the default /bin/sh, if set.
+            ec = subprocess.call(cmd, shell=True, executable=os.environ.get('SHELL', None))
+            # exit code is positive for program failure, or negative for
+            # terminating signal number.
         
         # We explicitly do NOT return the subprocess status code, because
         # a non-None value would trigger :func:`sys.displayhook` calls.
@@ -2285,7 +2301,6 @@ class InteractiveShell(SingletonConfigurable):
     def init_alias(self):
         self.alias_manager = AliasManager(shell=self, parent=self)
         self.configurables.append(self.alias_manager)
-        self.ns_table['alias'] = self.alias_manager.alias_table,
 
     #-------------------------------------------------------------------------
     # Things related to extensions
@@ -2967,7 +2982,7 @@ class InteractiveShell(SingletonConfigurable):
         Optional inputs:
 
           - data(None): if data is given, it gets written out to the temp file
-          immediately, and the file is closed again."""
+            immediately, and the file is closed again."""
 
         filename = tempfile.mktemp('.py', prefix)
         self.tempfiles.append(filename)
@@ -3010,13 +3025,14 @@ class InteractiveShell(SingletonConfigurable):
 
         Optional Parameters:
           - raw(False): by default, the processed input is used.  If this is
-          true, the raw input history is used instead.
+            true, the raw input history is used instead.
 
         Note that slices can be called with two notations:
 
         N:M -> standard python form, means including items N...(M-1).
 
-        N-M -> include items N..M (closed endpoint)."""
+        N-M -> include items N..M (closed endpoint).
+        """
         lines = self.history_manager.get_range_by_str(range_str, raw=raw)
         return "\n".join(x for _, _, x in lines)
 

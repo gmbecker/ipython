@@ -10,6 +10,7 @@
 //============================================================================
 
 var IPython = (function (IPython) {
+    "use strict";
 
     var utils = IPython.utils;
     var key   = IPython.utils.keycodes;
@@ -456,6 +457,14 @@ var IPython = (function (IPython) {
         this.element.animate({scrollTop:0}, 0);
     };
 
+    // Edit Notebook metadata
+
+    Notebook.prototype.edit_metadata = function () {
+        var that = this;
+        IPython.dialog.edit_metadata(this.metadata, function (md) {
+            that.metadata = md;
+        }, 'Notebook');
+    };
 
     // Cell indexing, retrieval, etc.
 
@@ -1596,8 +1605,14 @@ var IPython = (function (IPython) {
     Notebook.prototype.merge_cell_above = function () {
         var index = this.get_selected_index();
         var cell = this.get_cell(index);
+        if (!cell.is_mergeable()) {
+            return;
+        }
         if (index > 0) {
             var upper_cell = this.get_cell(index-1);
+            if (!upper_cell.is_mergeable()) {
+                return;
+            }
             var upper_text = upper_cell.get_text();
             var text = cell.get_text();
             if (cell instanceof IPython.CodeCell) {
@@ -1620,8 +1635,14 @@ var IPython = (function (IPython) {
     Notebook.prototype.merge_cell_below = function () {
         var index = this.get_selected_index();
         var cell = this.get_cell(index);
+        if (!cell.is_mergeable()) {
+            return;
+        }
         if (index < this.ncells()-1) {
             var lower_cell = this.get_cell(index+1);
+            if (!lower_cell.is_mergeable()) {
+                return;
+            }
             var lower_text = lower_cell.get_text();
             var text = cell.get_text();
             if (cell instanceof IPython.CodeCell) {
@@ -1755,7 +1776,7 @@ var IPython = (function (IPython) {
         var cells = this.get_cells();
         for (var i=0; i<ncells; i++) {
             if (cells[i] instanceof IPython.CodeCell) {
-                cells[i].clear_output(true,true,true);
+                cells[i].clear_output();
                 // Make all In[] prompts blank, as well
                 // TODO: make this configurable (via checkbox?)
                 cells[i].set_input_prompt();
@@ -1786,7 +1807,7 @@ var IPython = (function (IPython) {
     Notebook.prototype.start_kernel = function () {
         var base_url = $('body').data('baseKernelUrl') + "kernels";
         this.kernel = new IPython.Kernel(base_url);
-        this.kernel.start(this.notebook_id);
+        this.kernel.start({notebook: this.notebook_id});
         // Now that the kernel has been created, tell the CodeCells about it.
         var ncells = this.ncells();
         for (var i=0; i<ncells; i++) {

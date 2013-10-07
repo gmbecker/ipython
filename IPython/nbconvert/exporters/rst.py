@@ -16,13 +16,13 @@ Exporter for exporting notebooks to restructured text.
 from IPython.utils.traitlets import Unicode
 from IPython.config import Config
 
-from .exporter import Exporter
+from .templateexporter import TemplateExporter
 
 #-----------------------------------------------------------------------------
 # Classes
 #-----------------------------------------------------------------------------
 
-class RSTExporter(Exporter):
+class RSTExporter(TemplateExporter):
     """
     Exports restructured text documents.
     """
@@ -33,6 +33,6 @@ class RSTExporter(Exporter):
 
     @property
     def default_config(self):
-        c = Config({'ExtractOutputTransformer':{'enabled':True}})
+        c = Config({'ExtractOutputPreprocessor':{'enabled':True}})
         c.merge(super(RSTExporter,self).default_config)
         return c

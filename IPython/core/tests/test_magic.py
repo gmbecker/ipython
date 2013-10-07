@@ -45,19 +45,34 @@ from IPython.utils.process import find_cmd
 @magic.magics_class
 class DummyMagics(magic.Magics): pass
 
+def test_extract_code_ranges():
+    instr = "1 3 5-6 7-9 10:15 17: :10 10- -13 :"
+    expected = [(0, 1), 
+                (2, 3),
+                (4, 6),
+                (6, 9),
+                (9, 14),
+                (16, None),
+                (None, 9),
+                (9, None),
+                (None, 13),
+                (None, None)]
+    actual = list(code.extract_code_ranges(instr))
+    nt.assert_equal(actual, expected)
+
 def test_rehashx():
     # clear up everything
     _ip = get_ipython()
-    _ip.alias_manager.alias_table.clear()
+    _ip.alias_manager.clear_aliases()
     del _ip.db['syscmdlist']
     
     _ip.magic('rehashx')
     # Practically ALL ipython development systems will have more than 10 aliases
 
-    nt.assert_true(len(_ip.alias_manager.alias_table) > 10)
-    for key, val in _ip.alias_manager.alias_table.iteritems():
+    nt.assert_true(len(_ip.alias_manager.aliases) > 10)
+    for name, cmd in _ip.alias_manager.aliases:
         # we must strip dots from alias names
-        nt.assert_not_in('.', key)
+        nt.assert_not_in('.', name)
 
     # rehashx must fill up syscmdlist
     scoms = _ip.db['syscmdlist']
@@ -487,7 +502,21 @@ def test_timeit_special_syntax():
     # cell mode test
     _ip.run_cell_magic('timeit', '-n1 -r1', '%lmagic my line2')
     nt.assert_equal(_ip.user_ns['lmagic_out'], 'my line2')
-    
+
+def test_timeit_return():
+    """
+    test wether timeit -o return object
+    """
+
+    res = _ip.run_line_magic('timeit','-n10 -r10 -o 1')
+    assert(res is not None)
+
+def test_timeit_quiet():
+    """
+    test quiet option of timeit magic
+    """
+    with tt.AssertNotPrints("loops"):
+        _ip.run_cell("%timeit -n1 -r1 -q 1")
 
 @dec.skipif(execution.profile is None)
 def test_prun_special_syntax():

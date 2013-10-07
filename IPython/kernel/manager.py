@@ -1,5 +1,4 @@
-"""Base class to manage a running kernel
-"""
+"""Base class to manage a running kernel"""
 
 #-----------------------------------------------------------------------------
 #  Copyright (C) 2013  The IPython Development Team
@@ -15,6 +14,7 @@
 from __future__ import absolute_import
 
 # Standard library imports
+import re
 import signal
 import sys
 import time
@@ -24,7 +24,7 @@ import zmq
 # Local imports
 from IPython.config.configurable import LoggingConfigurable
 from IPython.utils.importstring import import_item
-from IPython.utils.localinterfaces import LOCAL_IPS
+from IPython.utils.localinterfaces import is_local_ip, local_ips
 from IPython.utils.traitlets import (
     Any, Instance, Unicode, List, Bool, Type, DottedObjectName
 )
@@ -141,7 +141,7 @@ class KernelManager(LoggingConfigurable, ConnectionFileMixin):
     #--------------------------------------------------------------------------
 
     def format_kernel_cmd(self, **kw):
-        """format templated args (e.g. {connection_file})"""
+        """replace templated args (e.g. {connection_file})"""
         if self.kernel_cmd:
             cmd = self.kernel_cmd
         else:
@@ -151,7 +151,13 @@ class KernelManager(LoggingConfigurable, ConnectionFileMixin):
             )
         ns = dict(connection_file=self.connection_file)
         ns.update(self._launch_args)
-        return [ c.format(**ns) for c in cmd ]
+        
+        pat = re.compile(r'\{([A-Za-z0-9_]+)\}')
+        def from_ns(match):
+            """Get the key out of ns if it's there, otherwise no change."""
+            return ns.get(match.group(1), match.group())
+        
+        return [ pat.sub(from_ns, arg) for arg in cmd ]
 
     def _launch_kernel(self, kernel_cmd, **kw):
         """actually launch the kernel
@@ -185,11 +191,11 @@ class KernelManager(LoggingConfigurable, ConnectionFileMixin):
              keyword arguments that are passed down to build the kernel_cmd
              and launching the kernel (e.g. Popen kwargs).
         """
-        if self.transport == 'tcp' and self.ip not in LOCAL_IPS:
+        if self.transport == 'tcp' and not is_local_ip(self.ip):
             raise RuntimeError("Can only launch a kernel on a local interface. "
                                "Make sure that the '*_address' attributes are "
                                "configured properly. "
-                               "Currently valid addresses are: %s"%LOCAL_IPS
+                               "Currently valid addresses are: %s" % local_ips()
                                )
 
         # write connection file / get default ports

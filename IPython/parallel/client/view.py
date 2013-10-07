@@ -379,7 +379,7 @@ class View(HasTraits):
     # Decorators
     #-------------------------------------------------------------------
 
-    def remote(self, block=True, **flags):
+    def remote(self, block=None, **flags):
         """Decorator for making a RemoteFunction"""
         block = self.block if block is None else block
         return remote(self, block=block, **flags)
@@ -457,7 +457,7 @@ class DirectView(View):
             else:
                 user_ns[name] = sys.modules[name]
 
-        def view_import(name, globals={}, locals={}, fromlist=[], level=-1):
+        def view_import(name, globals={}, locals={}, fromlist=[], level=0):
             """the drop-in replacement for __import__, that optionally imports
             locally as well.
             """
@@ -478,7 +478,7 @@ class DirectView(View):
             imp.release_lock()
 
             key = name+':'+','.join(fromlist or [])
-            if level == -1 and key not in modules:
+            if level <= 0 and key not in modules:
                 modules.add(key)
                 if not quiet:
                     if fromlist:
@@ -797,7 +797,7 @@ class DirectView(View):
     def __setitem__(self,key, value):
         self.update({key:value})
 
-    def clear(self, targets=None, block=False):
+    def clear(self, targets=None, block=None):
         """Clear the remote namespaces on my engines."""
         block = block if block is not None else self.block
         targets = targets if targets is not None else self.targets

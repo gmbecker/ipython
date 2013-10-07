@@ -78,14 +78,14 @@ from IPython.kernel.zmq.kernelapp import (
     kernel_aliases,
 )
 from IPython.utils.importstring import import_item
-from IPython.utils.localinterfaces import LOCALHOST
+from IPython.utils.localinterfaces import localhost
 from IPython.utils import submodule
 from IPython.utils.traitlets import (
     Dict, Unicode, Integer, List, Bool, Bytes,
     DottedObjectName
 )
 from IPython.utils import py3compat
-from IPython.utils.path import filefind
+from IPython.utils.path import filefind, get_ipython_dir
 
 from .utils import url_path_join
 
@@ -112,7 +112,7 @@ def random_ports(port, n):
     for i in range(min(5, n)):
         yield port + i
     for i in range(n-5):
-        yield port + random.randint(-2*n, 2*n)
+        yield max(1, port + random.randint(-2*n, 2*n))
 
 def load_handlers(name):
     """Load the (URL pattern, handler) tuples for each component."""
@@ -170,6 +170,7 @@ class NotebookWebApplication(web.Application):
             cluster_manager=cluster_manager,
             
             # IPython stuff
+            nbextensions_path = ipython_app.nbextensions_path,
             mathjax_url=ipython_app.mathjax_url,
             config=ipython_app.config,
             use_less=ipython_app.use_less,
@@ -193,6 +194,7 @@ class NotebookWebApplication(web.Application):
         handlers.extend(load_handlers('services.clusters.handlers'))
         handlers.extend([
             (r"/files/(.*)", AuthenticatedFileHandler, {'path' : settings['notebook_manager'].notebook_dir}),
+            (r"/nbextensions/(.*)", FileFindHandler, {'path' : settings['nbextensions_path']}),
         ])
         # prepend base_project_url onto the patterns that we match
         new_handlers = []
@@ -253,7 +255,7 @@ aliases.update({
 aliases.pop('f', None)
 
 notebook_aliases = [u'port', u'port-retries', u'ip', u'keyfile', u'certfile',
-                    u'notebook-dir']
+                    u'notebook-dir', u'profile', u'profile-dir']
 
 #-----------------------------------------------------------------------------
 # NotebookApp
@@ -293,9 +295,11 @@ class NotebookApp(BaseIPythonApplication):
 
     # Network related information.
 
-    ip = Unicode(LOCALHOST, config=True,
+    ip = Unicode(config=True,
         help="The IP address the notebook server will listen on."
     )
+    def _ip_default(self):
+        return localhost()
 
     def _ip_changed(self, name, old, new):
         if new == u'*': self.ip = u''
@@ -430,6 +434,12 @@ class NotebookApp(BaseIPythonApplication):
     def static_file_path(self):
         """return extra paths + the default location"""
         return self.extra_static_paths + [DEFAULT_STATIC_FILES_PATH]
+    
+    nbextensions_path = List(Unicode, config=True,
+        help="""paths for Javascript extensions. By default, this is just IPYTHONDIR/nbextensions"""
+    )
+    def _nbextensions_path_default(self):
+        return [os.path.join(get_ipython_dir(), 'nbextensions')]
 
     mathjax_url = Unicode("", config=True,
         help="""The url for MathJax.js."""
@@ -440,21 +450,32 @@ class NotebookApp(BaseIPythonApplication):
         static_url_prefix = self.webapp_settings.get("static_url_prefix",
                          url_path_join(self.base_project_url, "static")
         )
-        try:
-            mathjax = filefind(os.path.join('mathjax', 'MathJax.js'), self.static_file_path)
-        except IOError:
-            if self.certfile:
-                # HTTPS: load from Rackspace CDN, because SSL certificate requires it
-                base = u"https://c328740.ssl.cf1.rackcdn.com"
+        
+        # try local mathjax, either in nbextensions/mathjax or static/mathjax
+        for (url_prefix, search_path) in [
+            (url_path_join(self.base_project_url, "nbextensions"), self.nbextensions_path),
+            (static_url_prefix, self.static_file_path),
+        ]:
+            self.log.debug("searching for local mathjax in %s", search_path)
+            try:
+                mathjax = filefind(os.path.join('mathjax', 'MathJax.js'), search_path)
+            except IOError:
+                continue
             else:
-                base = u"http://cdn.mathjax.org"
-            
-            url = base + u"/mathjax/latest/MathJax.js"
-            self.log.info("Using MathJax from CDN: %s", url)
-            return url
+                url = url_path_join(url_prefix, u"mathjax/MathJax.js")
+                self.log.info("Serving local MathJax from %s at %s", mathjax, url)
+                return url
+        
+        # no local mathjax, serve from CDN
+        if self.certfile:
+            # HTTPS: load from Rackspace CDN, because SSL certificate requires it
+            host = u"https://c328740.ssl.cf1.rackcdn.com"
         else:
-            self.log.info("Using local MathJax from %s" % mathjax)
-            return url_path_join(static_url_prefix, u"mathjax/MathJax.js")
+            host = u"http://cdn.mathjax.org"
+        
+        url = host + u"/mathjax/latest/MathJax.js"
+        self.log.info("Using MathJax from CDN: %s", url)
+        return url
     
     def _mathjax_url_changed(self, name, old, new):
         if new and not self.enable_mathjax:
@@ -471,17 +492,10 @@ class NotebookApp(BaseIPythonApplication):
         help=("Whether to trust or not X-Scheme/X-Forwarded-Proto and X-Real-Ip/X-Forwarded-For headers"
               "sent by the upstream reverse proxy. Neccesary if the proxy handles SSL")
     )
-
+    
     def parse_command_line(self, argv=None):
         super(NotebookApp, self).parse_command_line(argv)
-        if argv is None:
-            argv = sys.argv[1:]
-
-        # Scrub frontend-specific flags
-        self.kernel_argv = swallow_argv(argv, notebook_aliases, notebook_flags)
-        # Kernel should inherit default config file from frontend
-        self.kernel_argv.append("--IPKernelApp.parent_appname='%s'" % self.name)
-
+        
         if self.extra_args:
             f = os.path.abspath(self.extra_args[0])
             if os.path.isdir(f):
@@ -490,6 +504,15 @@ class NotebookApp(BaseIPythonApplication):
                 self.file_to_run = f
                 nbdir = os.path.dirname(f)
             self.config.NotebookManager.notebook_dir = nbdir
+
+    def init_kernel_argv(self):
+        """construct the kernel arguments"""
+        # Scrub frontend-specific flags
+        self.kernel_argv = swallow_argv(self.argv, notebook_aliases, notebook_flags)
+        # Kernel should inherit default config file from frontend
+        self.kernel_argv.append("--IPKernelApp.parent_appname='%s'" % self.name)
+        # Kernel should get *absolute* path to profile directory
+        self.kernel_argv.extend(["--profile-dir", self.profile_dir.location])
 
     def init_configurables(self):
         # force Session default to be secure
@@ -517,9 +540,9 @@ class NotebookApp(BaseIPythonApplication):
     def init_webapp(self):
         """initialize tornado webapp and httpserver"""
         self.web_app = NotebookWebApplication(
-            self, self.kernel_manager, self.notebook_manager, 
+            self, self.kernel_manager, self.notebook_manager,
             self.cluster_manager, self.log,
-            self.base_project_url, self.webapp_settings
+            self.base_project_url, self.webapp_settings,
         )
         if self.certfile:
             ssl_options = dict(certfile=self.certfile)
@@ -567,9 +590,14 @@ class NotebookApp(BaseIPythonApplication):
                         break
                     # restore the monekypatch
                     socket.AI_ADDRCONFIG = saved_AI_ADDRCONFIG
-                if e.errno != errno.EADDRINUSE:
+                if e.errno == errno.EADDRINUSE:
+                    self.log.info('The port %i is already in use, trying another random port.' % port)
+                    continue
+                elif e.errno in (errno.EACCES, getattr(errno, 'WSAEACCES', errno.EACCES)):
+                    self.log.warn("Permission to listen on port %i denied" % port)
+                    continue
+                else:
                     raise
-                self.log.info('The port %i is already in use, trying another random port.' % port)
             else:
                 self.port = port
                 success = True
@@ -657,6 +685,7 @@ class NotebookApp(BaseIPythonApplication):
     def initialize(self, argv=None):
         self.init_logging()
         super(NotebookApp, self).initialize(argv)
+        self.init_kernel_argv()
         self.init_configurables()
         self.init_components()
         self.init_webapp()
@@ -691,7 +720,7 @@ class NotebookApp(BaseIPythonApplication):
         info("Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).")
 
         if self.open_browser or self.file_to_run:
-            ip = self.ip or LOCALHOST
+            ip = self.ip or localhost()
             try:
                 browser = webbrowser.get(self.browser or None)
             except webbrowser.Error as e:

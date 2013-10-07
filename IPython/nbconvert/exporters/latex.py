@@ -23,14 +23,14 @@ import os
 from IPython.utils.traitlets import Unicode, List
 from IPython.config import Config
 
-from IPython.nbconvert import filters, transformers
-from .exporter import Exporter
+from IPython.nbconvert import filters, preprocessors
+from .templateexporter import TemplateExporter
 
 #-----------------------------------------------------------------------------
 # Classes and functions
 #-----------------------------------------------------------------------------
 
-class LatexExporter(Exporter):
+class LatexExporter(TemplateExporter):
     """
     Exports to a Latex template.  Inherit from this class if your template is
     LaTeX based and you need custom tranformers/filters.  Inherit from it if 
@@ -45,7 +45,7 @@ class LatexExporter(Exporter):
         help="Extension of the file that should be written to disk")
 
     default_template = Unicode('article', config=True, help="""Template of the 
-        data format to use.  I.E. 'full' or 'basic'""")
+        data format to use.  I.E. 'article' or 'report'""")
 
     #Latex constants
     default_template_path = Unicode(
@@ -74,16 +74,19 @@ class LatexExporter(Exporter):
             'NbConvertBase': {
                 'display_data_priority' : ['latex', 'pdf', 'png', 'jpg', 'svg', 'jpeg', 'text']
                 },
-             'ExtractOutputTransformer': {
+             'ExtractOutputPreprocessor': {
                     'enabled':True
                  },
-             'SVG2PDFTransformer': {
+             'SVG2PDFPreprocessor': {
                     'enabled':True
                  },
-             'LatexTransformer': {
+             'LatexPreprocessor': {
                     'enabled':True
                  },
-             'SphinxTransformer': {
+             'SphinxPreprocessor': {
+                    'enabled':True
+                 },
+             'HighlightMagicsPreprocessor': {
                     'enabled':True
                  }
          })

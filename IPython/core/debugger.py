@@ -35,6 +35,7 @@ from IPython import get_ipython
 from IPython.utils import PyColorize, ulinecache
 from IPython.utils import coloransi, io, py3compat
 from IPython.core.excolors import exception_colors
+from IPython.testing.skipdoctest import skip_doctest
 
 # See if we can use pydb.
 has_pydb = False
@@ -91,22 +92,28 @@ class Tracer(object):
     while functioning acceptably (though with limitations) if outside of it.
     """
 
+    @skip_doctest
     def __init__(self,colors=None):
         """Create a local debugger instance.
 
-        :Parameters:
+        Parameters
+        ----------
 
-          - `colors` (None): a string containing the name of the color scheme to
-        use, it must be one of IPython's valid color schemes.  If not given, the
-        function will default to the current IPython scheme when running inside
-        IPython, and to 'NoColor' otherwise.
+        colors : str, optional
+            The name of the color scheme to use, it must be one of IPython's
+            valid color schemes.  If not given, the function will default to
+            the current IPython scheme when running inside IPython, and to
+            'NoColor' otherwise.
 
-        Usage example:
+        Examples
+        --------
+        ::
 
-        from IPython.core.debugger import Tracer; debug_here = Tracer()
+            from IPython.core.debugger import Tracer; debug_here = Tracer()
 
-        ... later in your code
-        debug_here()  # -> will open up the debugger at that point.
+        Later in your code::
+        
+            debug_here()  # -> will open up the debugger at that point.
 
         Once the debugger activates, you can use all of its regular commands to
         step through code, set breakpoints, etc.  See the pdb documentation
