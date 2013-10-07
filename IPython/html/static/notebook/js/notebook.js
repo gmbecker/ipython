@@ -1042,10 +1042,10 @@ var IPython = (function (IPython) {
 	for(var i=index+1; i < sibs.length; i++)
 	{
 	    if(!$(sibs[i]).hasClass("hidden"))
-		return parent.insert_cell_at(type, i);
+		return parent.insert_cell_at_index(type, i);
 	}
 	//return parent.insert_cell_at_index(type, index+1);
-	return parent.insert_cell_at(type, sibs.length);
+	return parent.insert_cell_at_index(type, sibs.length);
     };
 
 
