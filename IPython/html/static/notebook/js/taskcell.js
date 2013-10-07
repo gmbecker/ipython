@@ -341,7 +341,7 @@ var IPython = (function (IPython) {
 	while(!done && cindex < this.ncells(true) -1)
 	{
 	    tmpcell = this.get_cell(cindex + 1)
-	    if(!$(tmpcell.element).hasClass("hidden"))
+	    if(!$(tmpcell.element).hasClass("hidden_cell"))
 	    {
 		this.select(cindex+1);
 		done = true;
@@ -611,7 +611,7 @@ var IPython = (function (IPython) {
 	for(var i=0; i<ncells; i++)
 	{
 	    cell = this.get_cell(i);
-	    if( !$(cell.element).hasClass("hidden") && (cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell || cell instanceof IPython.IntCodeCell))
+	    if( !$(cell.element).hasClass("hidden_cell") && (cell instanceof IPython.CodeCell || cell instanceof IPython.ContainerCell || cell instanceof IPython.IntCodeCell))
 		cell.execute();
 	}
     };

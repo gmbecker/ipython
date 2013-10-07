@@ -1050,7 +1050,7 @@ var IPython = (function (IPython) {
 	var sibs = parent.get_cell_elements();
 	for(var i=index+1; i < sibs.length; i++)
 	{
-	    if(!$(sibs[i]).hasClass("hidden"))
+	    if(!$(sibs[i]).hasClass("hidden_cell"))
 		return parent.insert_cell_at_index(type, i);
 	}
 	//return parent.insert_cell_at_index(type, index+1);
@@ -1085,7 +1085,7 @@ var IPython = (function (IPython) {
     Notebook.prototype.change_detail_level = function(level){
 	if (typeof level === 'undefined')
 	    level = 1;
-	var hidden = this.element.find("div.hidden");
+	var hidden = this.element.find("div.hidden_cell");
 	var cells = this.get_all_cell_elements();
 	var hcell;
 	var hlevels = new Array();
@@ -1095,9 +1095,9 @@ var IPython = (function (IPython) {
 	{
 	    hcell = $(hidden[i]).data("cell");
 	    detail = hcell.metadata.dyndocmodel.detail;
-	    if(detail <= level)
-		$(hidden[i]).removeClass("hidden");
-	    else {
+	    if(detail <= level) {
+		$(hidden[i]).removeClass("hidden_cell").css({"display":"block"});
+	    } else {
 		if(hlevels.indexOf(detail) == -1)
 		    hlevels.push(detail);
 	    }
@@ -1109,7 +1109,7 @@ var IPython = (function (IPython) {
 	    cell = $(cells[j]).data("cell");
 	    if(cell.metadata.hasOwnProperty("dyndocmodel") && cell.metadata.dyndocmodel.hasOwnProperty("detail") && cell.metadata.dyndocmodel.detail > level) {
 		detail = cell.metadata.dyndocmodel.detail;
-		$(cell.element).addClass("hidden");
+		$(cell.element).addClass("hidden_cell").css({"display":"none"});
 		if(hlevels.indexOf(detail) == -1)
 		    hlevels.push(detail);
 	    };
@@ -1879,7 +1879,7 @@ var IPython = (function (IPython) {
 		cell_index = that.find_cell_index(cell);
 	    }
 	    //walk the cells in parent starting after executed cell until we find a non-hidden element or hit the end
-	    while(cell_index < that.ncells()-1 && $(that.get_cell(cell_index + 1).element).hasClass("hidden"))
+	    while(cell_index < that.ncells()-1 && $(that.get_cell(cell_index + 1).element).hasClass("hidden_cell"))
 		cell_index++;
 	    if ((cell_index === (that.ncells()-1)) && default_options.add_new) {
                 that.insert_cell_below('code', cell_index);
