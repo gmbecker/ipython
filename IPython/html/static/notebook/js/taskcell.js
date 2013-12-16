@@ -453,12 +453,13 @@ var IPython = (function (IPython) {
     
     
     ContainerCell.prototype.fromJSON = function (data) {
-        //IPython.Cell.prototype.fromJSON.apply(this, arguments);
+        IPython.Cell.prototype.fromJSON.apply(this, arguments);
 	//       if (data.cell_type === this.cell_type) {
         if (data.cells !== undefined) {
 	    //lifted from notebook.js
 	    var new_cells = data.cells;
 	    var ncells = new_cells.length;
+	 
 	    var cell_data = null;
 	    var new_cell = null;
 	    var new_cell_objs = new Array(ncells);
