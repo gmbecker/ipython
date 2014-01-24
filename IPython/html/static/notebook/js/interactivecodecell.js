@@ -138,21 +138,28 @@ var IPython = (function (IPython){
 	    
 	}
     };
+
+    //extendable list of supported widget constructors.
+    IntCodeCell.prototype.widget_constructors = {
+	"slider": function(wdata, i, that)
+	{
+	    var widget_container, widget, widget_label;
+	    widget_container = $("<div></div>").addClass("widget_container hbox");
+	    widget_label = $("<span></span>").text(wdata.variable + ": ").addClass("widget_label");
+	    //widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max, value:wdata.defaultvalue}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
+	    widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:that}, that.doControl);
+	    widget_container.append(widget_label);
+	    widget_container.append(widget);
+	    that.widget_area.append(widget_container);	  
+	}
+    };  
     
     IntCodeCell.prototype.add_widget = function(wdata, i)
     {
 	var i = i | this.widgets.length;
-	var widget_container, widget, widget_label;
-	if(wdata.type === "slider")
-	{
-	    widget_container = $("<div></div>").addClass("widget_container hbox");
-	    widget_label = $("<span></span>").text(wdata.variable + ": ").addClass("widget_label");
-	    //widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max, value:wdata.defaultvalue}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
-	    widget = $("<input></input>").attr({type:"range", step:wdata.step, min:wdata.min, max:wdata.max}).on("change", {variable:wdata.variable, linenum:wdata.linenum, index:i, cell:this}, this.doControl);
-	    widget_container.append(widget_label);
-	    widget_container.append(widget);
-	    this.widget_area.append(widget_container);
-	}
+
+	this.widget_constructors[wdata.type](wdata, i, this);
+	
 	this.widgets.push(wdata);
 	
     };
